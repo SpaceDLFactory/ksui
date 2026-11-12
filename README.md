@@ -1,42 +1,43 @@
 # wow-forever-ui
 
-Personal UI addons for WoW Forever (game 1.60.1, interface 16001).
+WoW Forever(게임 1.60.1, 인터페이스 16001)용 개인 UI 애드온.
 
-`KSUI` (shown in game as 검성UI) recolors the default unit frames and action bars, colors player and target health bars by class,
-and shows the client's cooldown numbers on the action bars. Party, raid, focus and boss frames stay
-Blizzard's own, so they keep working under instance combat restrictions; KSUI only tints and positions them.
+`KSUI`(게임 안 이름 검성UI)는 기본 유닛 프레임과 단축바 색을 바꾸고, 내 체력바와 대상 체력바를 직업색으로 칠하고,
+단축바에 클라이언트 쿨다운 숫자를 띄운다. 파티·공격대·주시·우두머리 프레임은 블리자드 것을 그대로 쓴다.
+그래서 인스턴스 전투 제한 안에서도 동작하고, KSUI는 색과 위치만 손댄다.
 
-It also has small combat and convenience helpers, each with its own toggle:
-- Action buttons turn red when the target is out of range. Blizzard's blue for low mana stays as it is.
-- Health and mana bars show the percent next to the number, using Blizzard's own bar text.
-- The target frame shows Blizzard's threat number. When you are tanking, it shows your lead over the next player.
-- Raid frames show only the debuffs you can dispel.
-- Blizzard's cooldown manager is turned on. It shows your class and spec cooldowns and buffs by itself, and the layout stacks it up the middle on top of the cast bar.
-- Action bars fade out of combat when you have no target. You can set how faded they get.
-- At a vendor, gray items are sold and gear is repaired with your own gold.
-- On a ready check, chat lists the raid buffs you are missing from the priests, druids and mages in your group.
-- When a bag item beats what you wear, chat names it. The `추천 장비 착용` button under the character window puts it on.
-  Items are scored by rough stat weights for your spec's role (tank, healer, melee or caster). Armor, necks, cloaks and
-  rings are compared; weapons, shields, trinkets and unbound items are left to you, and the same ring is never suggested twice.
-- The minimap tracks herbs, ore or fish for the gathering professions you know.
+전투·편의 기능도 있고, 각각 따로 켜고 끌 수 있다.
+- 대상이 사거리 밖이면 단축 버튼이 빨개진다. 마나 부족일 때 블리자드의 파란색은 그대로 둔다.
+- 체력·마나바 숫자 옆에 퍼센트가 나온다. 블리자드 자체 바 글자를 쓴다.
+- 대상 프레임에 블리자드 위협 수치가 나온다. 내가 탱킹 중이면 다음 사람과의 차이를 보여준다.
+- 공격대 프레임에는 내가 해제할 수 있는 디버프만 나온다.
+- 블리자드 쿨다운 관리자를 켠다. 직업·전문화별 쿨다운과 버프를 알아서 보여주고, 배치에서는 시전바 위로 가운데에 쌓는다.
+- 전투 중이 아니고 대상이 없으면 단축바가 흐려진다. 얼마나 흐려질지 정할 수 있다.
+- 상인을 열면 회색 아이템을 팔고 내 돈으로 장비를 수리한다.
+- 준비 확인 때 파티에 있는 사제·드루이드·마법사 버프 중 빠진 것을 채팅에 알려준다.
+- 가방 아이템이 입은 것보다 좋으면 채팅에 알려준다. 캐릭터 창 아래 `추천 장비 착용` 버튼으로 입는다.
+  전문화 역할(탱커, 힐러, 근접, 캐스터)별 대략적인 능력치 가중치로 점수를 매긴다. 방어구, 목걸이, 망토, 반지만 비교하고,
+  무기·방패·장신구·귀속 안 된 아이템은 직접 고르게 둔다. 같은 반지를 두 번 추천하지 않는다.
+- 배운 채집 전문 기술에 맞춰 미니맵에 약초·광석·물고기 추적을 켠다.
 
-Type `/ksui`, or open Options > AddOns > KSUI, to change the colors, toggles, number size and frame
-position. Appearance and cooldown changes apply immediately and are saved in `KSUIDB`.
+`/ksui`를 치거나 설정 > 애드온 > 검성UI를 열면 색, 기능 켜기/끄기, 숫자 크기, 프레임 위치를 바꿀 수 있다.
+외형과 쿨다운 변경은 바로 적용되고 `KSUIDB`에 저장된다.
 
-The frame position applies when you press `적용` or run `/ksui layout` out of combat. That copies the active
-Edit Mode layout to a layout named `KSUI` and reloads the UI. That layout puts everything at the bottom except party and raid:
-the minimap sits at the bottom center on top of the experience bars, with the action bars split around it. On its left are the main bar,
-bar 2, right bar 1 (made horizontal) and the stance bar. On its right are the micro menu with the bags, bar 3, right bar 2 (made horizontal)
-and the pet bar. Empty slots on the two right bars are hidden. The cast bar sits on top of the minimap with the cooldown manager stacked above it, buffs and debuffs above the player
-frame, and chat is raised to the height of the unit frames. The quest tracker goes to the bottom-right corner with the tooltip above it and
-the boss frames above its left edge. Party and raid frames go to the top-left corner,
-and the raid frames are set up for 40 players (eight groups side by side, minimum cell size). Doing
-it again rebuilds `KSUI` from the active layout. Fine-tune with the game's Edit Mode afterwards.
+프레임 위치는 전투 중이 아닐 때 `적용`을 누르거나 `/ksui layout`을 치면 적용된다. 현재 편집 모드 레이아웃을
+`KSUI`라는 레이아웃으로 복사하고 UI를 다시 불러온다. 이 레이아웃은 파티·공격대를 빼고 전부 아래에 둔다.
+- 미니맵은 경험치바 위 하단 가운데에 두고, 단축바를 그 양옆으로 나눈다.
+- 왼쪽: 주 단축바, 단축바 2, 오른쪽 단축바 1(가로로 바꿈), 태세바.
+- 오른쪽: 게임 메뉴와 가방, 단축바 3, 오른쪽 단축바 2(가로로 바꿈), 소환수바. 오른쪽 단축바 두 개의 빈 칸은 숨긴다.
+- 시전바는 미니맵 위, 쿨다운 관리자는 그 위로 쌓는다. 버프·디버프는 내 프레임 위에 두고, 채팅창은 유닛 프레임 높이까지 올린다.
+- 퀘스트 목록은 오른쪽 아래 구석, 툴팁은 그 위, 우두머리 프레임은 그 왼쪽 위에 둔다.
+- 파티·공격대 프레임은 왼쪽 위 구석. 공격대는 40인 기준(8개 파티를 옆으로 나란히, 칸 크기 최소)으로 맞춘다.
 
-## Install on Windows
+다시 적용하면 현재 레이아웃에서 `KSUI`를 새로 만든다. 세부 위치는 그다음 게임의 편집 모드로 다듬는다.
 
-Delete any old `KSUI` and `KSCooldownText` folders from `World of Warcraft\_forever_\Interface\AddOns`,
-then extract `wow-forever-ui-0.9.1.zip` there so that `AddOns\KSUI\KSUI.toc` exists. Restart the game client.
+## 윈도우에 설치
+
+`World of Warcraft\_forever_\Interface\AddOns`에서 예전 `KSUI`, `KSCooldownText` 폴더를 지우고,
+`wow-forever-ui-0.9.1.zip`을 그 자리에 풀어서 `AddOns\KSUI\KSUI.toc`가 생기게 한다. 게임 클라이언트를 다시 켠다.
 
 ## FFXIV HUD
 
@@ -50,7 +51,7 @@ python3 ff14/ksui_layout.py ADDON.DAT ADDON_new.DAT 4
 
 Copy `ADDON_new.DAT` over `ADDON.DAT`. In game, `/hudlayout 4` switches to it and `/hudlayout 1` goes back.
 
-## Develop
+## 개발
 
 ```sh
 luajit tests/run.lua
