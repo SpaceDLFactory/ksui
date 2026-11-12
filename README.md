@@ -38,6 +38,18 @@ it again rebuilds `KSUI` from the active layout. Fine-tune with the game's Edit 
 Delete any old `KSUI` and `KSCooldownText` folders from `World of Warcraft\_forever_\Interface\AddOns`,
 then extract `wow-forever-ui-0.9.1.zip` there so that `AddOns\KSUI\KSUI.toc` exists. Restart the game client.
 
+## FFXIV HUD
+
+The same bottom layout for FFXIV, written straight into the character's `ADDON.DAT` HUD layout slot 4
+by `ff14/ksui_layout.py`. FFXIV has no addon API, so this only moves Square Enix's own HUD elements.
+Close the game, back up the character folder, then run:
+
+```sh
+python3 ff14/ksui_layout.py ADDON.DAT ADDON_new.DAT 4
+```
+
+Copy `ADDON_new.DAT` over `ADDON.DAT`. In game, `/hudlayout 4` switches to it and `/hudlayout 1` goes back.
+
 ## Develop
 
 ```sh
