@@ -39,18 +39,6 @@ WoW Forever(게임 1.60.1, 인터페이스 16001)용 개인 UI 애드온.
 `World of Warcraft\_forever_\Interface\AddOns`에서 예전 `KSUI`, `KSCooldownText` 폴더를 지우고,
 `wow-forever-ui-0.9.1.zip`을 그 자리에 풀어서 `AddOns\KSUI\KSUI.toc`가 생기게 한다. 게임 클라이언트를 다시 켠다.
 
-## FFXIV HUD
-
-The same bottom layout for FFXIV, written straight into the character's `ADDON.DAT` HUD layout slot 4
-by `ff14/ksui_layout.py`. FFXIV has no addon API, so this only moves Square Enix's own HUD elements.
-Close the game, back up the character folder, then run:
-
-```sh
-python3 ff14/ksui_layout.py ADDON.DAT ADDON_new.DAT 4
-```
-
-Copy `ADDON_new.DAT` over `ADDON.DAT`. In game, `/hudlayout 4` switches to it and `/hudlayout 1` goes back.
-
 ## 개발
 
 ```sh
