@@ -1,4 +1,4 @@
-# 검성UI
+# 검성UI (Kumsung UI)
 
 WoW Forever(게임 1.60.1, 인터페이스 16001)용 오픈소스 UI 애드온.
 
