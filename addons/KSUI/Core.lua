@@ -68,6 +68,8 @@ SLASH_KSUI1 = "/ksui"
 SlashCmdList.KSUI = function(message)
 	if message == "layout" then
 		ns.ApplyLayout()
+	elseif message == "stats" then
+		ns.PrintGearStats()
 	else
 		Settings.OpenToCategory(ns.category:GetID())
 	end

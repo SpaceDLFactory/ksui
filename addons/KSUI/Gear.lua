@@ -74,7 +74,7 @@ local function currentWeights()
 	if extra and primary ~= 4 then
 		weights[PRIMARY_KEY[primary]] = extra
 	end
-	return weights
+	return weights, role
 end
 
 -- Returns nil when the item is not in the client's cache yet.
@@ -147,6 +147,31 @@ function ns.GearSuggestions()
 		end
 	end
 	return result
+end
+
+-- /ksui stats: shows how worn gear scores and which stat keys have no weight,
+-- so the assumed key names can be checked against what the game returns.
+function ns.PrintGearStats()
+	local weights, role = currentWeights()
+	print("검성UI 장비 점수 (" .. (role or "전문화 없음") .. "):")
+	local seen, unknown = {}, {}
+	for _, group in ipairs(GROUPS) do
+		for _, slot in ipairs(group.slots) do
+			local link = GetInventoryItemLink("player", slot)
+			if link then
+				local value = score(link, weights)
+				print("  " .. link .. " " .. (value and string.format("%.1f", value) or "정보 없음"))
+				for key in pairs(C_Item.GetItemStats(link) or {}) do
+					if not weights[key] and not seen[key] then
+						seen[key] = true
+						unknown[#unknown + 1] = key
+					end
+				end
+			end
+		end
+	end
+	table.sort(unknown)
+	print("  가중치 없는 능력치: " .. (#unknown > 0 and table.concat(unknown, ", ") or "없음"))
 end
 
 function ns.OnBagUpdate()

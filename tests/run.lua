@@ -93,7 +93,7 @@ local function mockSettings(env, state)
 end
 
 local function world(state)
-	local env = { ipairs = ipairs, pairs = pairs, type = type, setmetatable = setmetatable, error = error, table = table, math = math }
+	local env = { ipairs = ipairs, pairs = pairs, type = type, setmetatable = setmetatable, error = error, table = table, math = math, string = string }
 	env._G = env
 	local handlers = {}
 	env.events = handlers
@@ -207,7 +207,8 @@ local function world(state)
 	function env.tAppendAll(target, source)
 		for _, v in ipairs(source) do target[#target + 1] = v end
 	end
-	function env.print(message) state.printed = message end
+	state.log = {}
+	function env.print(message) state.printed = message; state.log[#state.log + 1] = message end
 	function env.ReloadUI() state.reloaded = true end
 	env.SlashCmdList = {}
 	env.Enum = {
@@ -990,6 +991,20 @@ do
 	state.printed = nil
 	fire(env, "BAG_UPDATE_DELAYED")
 	check("announcements off", state.printed == nil)
+end
+
+do
+	local state = gearState()
+	state.items["[odd ring]"] = { id = 11, loc = "INVTYPE_FINGER", stats = { ITEM_MOD_STAMINA_SHORT = 4, ITEM_MOD_MADE_UP_SHORT = 3 } }
+	state.worn = { [1] = "[worn helm]", [11] = "[odd ring]", [12] = "[uncached legs]" }
+	local env, ns = boot(state)
+	env.SlashCmdList.KSUI("stats")
+	local text = table.concat(state.log, "\n")
+	check("stats shows the role", text:find("TANK", 1, true) ~= nil)
+	check("stats scores each worn item", text:find("[worn helm] 10.0", 1, true) ~= nil
+		and text:find("[odd ring] 4.0", 1, true) ~= nil and text:find("[uncached legs] 정보 없음", 1, true) ~= nil)
+	check("stats lists keys with no weight", state.printed:find("ITEM_MOD_MADE_UP_SHORT", 1, true) ~= nil
+		and not state.printed:find("STAMINA", 1, true))
 end
 
 -- Gathering tracking
