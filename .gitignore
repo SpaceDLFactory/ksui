@@ -1,0 +1,5 @@
+dist/
+ff14/backup_*/
+__pycache__/
+.omc/
+.DS_Store

@@ -1,0 +1,16 @@
+## Interface: 16001
+## Title: 검성UI
+## Notes: Configurable dark reskin of the default unit frames and action bars for WoW Forever.
+## Version: 0.9.1
+## SavedVariables: KSUIDB
+
+Core.lua
+Skin.lua
+Cooldown.lua
+Layout.lua
+Combat.lua
+Merchant.lua
+ReadyCheck.lua
+Gear.lua
+Tracking.lua
+Options.lua
