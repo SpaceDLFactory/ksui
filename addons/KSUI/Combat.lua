@@ -87,6 +87,9 @@ local CAST_EVENTS = {
 	"UNIT_SPELLCAST_INTERRUPTIBLE", "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
 }
 
+-- A stun stands in until the class learns a real interrupt, since it stops casts too. Matched by name so any rank works.
+local STAND_IN = { PALADIN = 853 } -- Hammer of Justice
+
 local interrupt, interruptSlot
 
 -- Lit while the target casts something that can be interrupted.
@@ -117,15 +120,28 @@ local function placeCastBar(castBar)
 	end
 end
 
--- The interrupt is whichever spell on your bars the game marks as one, so no class list is kept.
-function ns.RefreshInterrupt()
-	interruptSlot = nil
+local function findSlot(matches)
+	local found
 	ns.ForEachActionButton(function(button)
 		local slot = button.action
-		if not interruptSlot and slot and C_ActionBar.HasAction(slot) and C_ActionBar.IsInterruptAction(slot) then
-			interruptSlot = slot
+		if not found and slot and C_ActionBar.HasAction(slot) and matches(slot) then
+			found = slot
 		end
 	end)
+	return found
+end
+
+-- The interrupt is whichever spell on your bars the game marks as one, so no list of interrupts is kept.
+function ns.RefreshInterrupt()
+	interruptSlot = findSlot(C_ActionBar.IsInterruptAction)
+	local _, class = UnitClass("player")
+	local standIn = STAND_IN[class] and C_Spell.GetSpellName(STAND_IN[class])
+	if not interruptSlot and standIn then
+		interruptSlot = findSlot(function(slot)
+			local kind, id = GetActionInfo(slot)
+			return kind == "spell" and C_Spell.GetSpellName(id) == standIn
+		end)
+	end
 	interrupt:SetShown(ns.db.interruptHelper and interruptSlot ~= nil)
 	if interruptSlot then
 		interrupt.icon:SetTexture(C_ActionBar.GetActionTexture(interruptSlot))

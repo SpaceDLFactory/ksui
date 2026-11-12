@@ -182,7 +182,7 @@ local function world(state)
 			local u = state.usable[action] or "usable"
 			return u == "usable", u == "mana"
 		end,
-		HasAction = function(slot) return slot == state.interruptSlot or slot == 1201 end,
+		HasAction = function(slot) return slot == state.interruptSlot or slot == 1201 or (state.actions or {})[slot] ~= nil end,
 		IsInterruptAction = function(slot) return slot == state.interruptSlot end,
 		GetActionTexture = function(slot) return "icon" .. slot end,
 		GetActionCooldownDuration = function(slot, ignoreGCD) return { slot = slot, ignoreGCD = ignoreGCD } end,
@@ -195,11 +195,14 @@ local function world(state)
 		if channel then return name, "", 1, 0, 1, false, c.notInterruptible end
 		return name, "", 1, 0, 1, false, 7, c.notInterruptible
 	end
+	-- state.actions = { slot -> spellID }
+	function env.GetActionInfo(slot) local id = (state.actions or {})[slot]; if id then return "spell", id end end
 	function env.UnitCastingInfo(unit) assert(unit == "target"); return castInfo(false) end
 	function env.UnitChannelInfo(unit) assert(unit == "target"); return castInfo(true) end
 	-- Real rank 1 IDs map to Korean names; an ID missing from the game returns nil.
 	local SPELLS = { [1243] = "신의 권능: 인내", [21562] = "인내의 기원", [1126] = "야생의 징표", [21849] = "야생의 선물",
-		[1459] = "신비한 지능", [23028] = "신비한 총명함" }
+		[1459] = "신비한 지능", [23028] = "신비한 총명함",
+		[853] = "심판의 망치", [5588] = "심판의 망치", [20271] = "심판" }
 	env.C_Spell = { GetSpellName = function(id) return SPELLS[id] end }
 	env.C_UnitAuras = { GetAuraDataByIndex = function(unit, i, filter)
 		assert(unit == "player" and filter == "HELPFUL")
@@ -1086,6 +1089,21 @@ do
 	check("page change finds the interrupt again", icon.shown == true)
 	state.settings.interruptHelper:SetValue(false)
 	check("turned off hands the cast bar straight back to Blizzard", castBar.point[2] == "default" and icon.shown == false)
+end
+
+do
+	local paladin = { player = true, class = "PALADIN" }
+	local state = { units = { player = paladin }, actions = { [1202] = 20271, [1207] = 5588 } }
+	local env = boot(state)
+	local icon = env.TargetFrame.spellbar.point[2]
+	check("paladin without an interrupt shows the stun, any rank", icon.shown == true and icon.icon.file == "icon1207")
+	state.interruptSlot = 2403
+	fire(env, "ACTIONBAR_SLOT_CHANGED")
+	check("a real interrupt takes over from the stun", icon.icon.file == "icon2403")
+	state.interruptSlot, state.units.player = nil, mage
+	state.actions = { [1207] = 5588 }
+	fire(env, "ACTIONBAR_SLOT_CHANGED")
+	check("other classes get no stand-in", icon.shown == false)
 end
 
 -- Gathering tracking
