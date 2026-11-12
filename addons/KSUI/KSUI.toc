@@ -3,6 +3,7 @@
 ## Notes: Configurable dark reskin of the default unit frames and action bars for WoW Forever.
 ## Version: 0.9.1
 ## SavedVariables: KSUIDB
+## X-License: GPL-3.0-or-later
 
 Core.lua
 Skin.lua
