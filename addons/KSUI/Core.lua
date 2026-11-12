@@ -36,6 +36,7 @@ events:SetScript("OnEvent", function(_, event)
 	if event == "PLAYER_LOGIN" then
 		ns.InitSkin()
 		ns.InitCombat()
+		ns.InitInterrupt()
 		ns.RefreshSkin()
 		ns.RefreshCooldowns()
 		ns.RefreshCVars()

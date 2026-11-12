@@ -21,6 +21,12 @@ local function texture()
 	function t:SetDesaturated(v) self.desaturated = v end
 	function t:SetVertexColor(r, g, b) self.color = { r, g, b } end
 	function t:SetTexCoord(...) self.coords = { ... } end
+	function t:SetTexture(v) self.file = v end
+	function t:SetColorTexture(r, g, b) self.fill = { r, g, b } end
+	function t:SetAlpha(a) self.alpha = a end
+	function t:SetAlphaFromBoolean(v, yes, no) self.alphaFrom = { v, yes, no } end
+	function t:SetPoint(...) self.point = { ... } end
+	function t:SetAllPoints() end
 	return t
 end
 
@@ -112,6 +118,10 @@ local function world(state)
 		function f:SetSize(w, h) self.size = { w, h } end
 		function f:SetPoint(...) self.point = { ... } end
 		function f:SetText(t) self.text = t end
+		function f:SetAllPoints() end
+		function f:SetShown(v) self.shown = v end
+		function f:CreateTexture() return texture() end
+		function f:SetCooldownFromDurationObject(d) self.duration = d end
 		return f
 	end
 	env.CharacterFrame, env.PaperDollFrame = { name = "CharacterFrame" }, { name = "PaperDollFrame" }
@@ -167,10 +177,26 @@ local function world(state)
 	function env.IsInRaid() return state.raid ~= nil end
 	function env.GetNumGroupMembers() return state.groupSize or 0 end
 	state.usable = {}
-	env.C_ActionBar = { IsUsableAction = function(action)
-		local u = state.usable[action] or "usable"
-		return u == "usable", u == "mana"
-	end }
+	env.C_ActionBar = {
+		IsUsableAction = function(action)
+			local u = state.usable[action] or "usable"
+			return u == "usable", u == "mana"
+		end,
+		HasAction = function(slot) return slot == state.interruptSlot or slot == 1201 end,
+		IsInterruptAction = function(slot) return slot == state.interruptSlot end,
+		GetActionTexture = function(slot) return "icon" .. slot end,
+		GetActionCooldownDuration = function(slot, ignoreGCD) return { slot = slot, ignoreGCD = ignoreGCD } end,
+	}
+	-- state.cast = { channel = bool, notInterruptible = bool or SECRET, secret = bool }
+	local function castInfo(channel)
+		local c = state.cast
+		if not c or (c.channel or false) ~= channel then return nil end
+		local name = c.secret and SECRET or "Fireball"
+		if channel then return name, "", 1, 0, 1, false, c.notInterruptible end
+		return name, "", 1, 0, 1, false, 7, c.notInterruptible
+	end
+	function env.UnitCastingInfo(unit) assert(unit == "target"); return castInfo(false) end
+	function env.UnitChannelInfo(unit) assert(unit == "target"); return castInfo(true) end
 	-- Real rank 1 IDs map to Korean names; an ID missing from the game returns nil.
 	local SPELLS = { [1243] = "신의 권능: 인내", [21562] = "인내의 기원", [1126] = "야생의 징표", [21849] = "야생의 선물",
 		[1459] = "신비한 지능", [23028] = "신비한 총명함" }
@@ -251,7 +277,12 @@ local function world(state)
 		},
 		PlayerFrameContent = { PlayerFrameContentMain = { HealthBarsContainer = { HealthBar = bar() } } },
 	}
+	local spellbar = {}
+	function spellbar:AdjustPosition() self.point = { "TOPLEFT", "default" } end
+	function spellbar:ClearAllPoints() self.point = nil end
+	function spellbar:SetPoint(...) self.point = { ... } end
 	env.TargetFrame = {
+		spellbar = spellbar,
 		TargetFrameContainer = { FrameTexture = texture() },
 		TargetFrameContent = { TargetFrameContentMain = { HealthBarsContainer = { HealthBar = bar() } } },
 	}
@@ -1009,6 +1040,52 @@ do
 		and text:find("[odd ring] 4.0", 1, true) ~= nil and text:find("[uncached legs] 정보 없음", 1, true) ~= nil)
 	check("stats lists keys with no weight", state.printed:find("ITEM_MOD_MADE_UP_SHORT", 1, true) ~= nil
 		and not state.printed:find("STAMINA", 1, true))
+end
+
+-- Interrupt and target cast bar
+do
+	local state = { units = { player = mage }, interruptSlot = 1205 }
+	local env, ns = boot(state)
+	local castBar = env.TargetFrame.spellbar
+	local function interruptFrame()
+		for _, h in ipairs(env.events) do
+			if h.frame.registered.UNIT_SPELLCAST_START then return h.frame end
+		end
+	end
+	check("interrupt events only for the target", interruptFrame() ~= nil)
+	-- The icon frame is the one the cast bar is anchored to.
+	local icon = castBar.point and castBar.point[2]
+	check("cast bar beside the interrupt", castBar.point[1] == "LEFT" and icon ~= nil and castBar.point[3] == "RIGHT")
+	check("interrupt next to the target frame", icon.parent == env.TargetFrame and icon.point[2] == env.TargetFrame)
+	check("interrupt found on the bars", icon.shown == true and icon.icon.file == "icon1205")
+	check("interrupt cooldown ignores the global cooldown", icon.cooldown.duration.slot == 1205 and icon.cooldown.duration.ignoreGCD == true)
+	check("no glow without a cast", icon.glow.alpha == 0)
+	state.cast = { notInterruptible = false }
+	fire(env, "UNIT_SPELLCAST_START")
+	check("glow on an interruptible cast", icon.glow.alpha == 1)
+	state.cast = { channel = true, notInterruptible = true }
+	fire(env, "UNIT_SPELLCAST_CHANNEL_START")
+	check("no glow on a shielded channel", icon.glow.alpha == 0)
+	state.cast = { secret = true, notInterruptible = SECRET }
+	fire(env, "UNIT_SPELLCAST_START")
+	check("secret interrupt flag passed through untested", icon.glow.alphaFrom ~= nil and icon.glow.alphaFrom[1] == SECRET
+		and icon.glow.alphaFrom[2] == 0 and icon.glow.alphaFrom[3] == 1)
+	state.cast = nil
+	fire(env, "UNIT_SPELLCAST_STOP")
+	check("glow off when the cast ends", icon.glow.alpha == 0)
+	castBar:AdjustPosition()
+	check("cast bar stays beside after Blizzard moves it", castBar.point[1] == "LEFT" and castBar.point[2] == icon)
+	state.interruptSlot = nil
+	fire(env, "ACTIONBAR_SLOT_CHANGED")
+	check("no interrupt on the bars hides the icon", icon.shown == false)
+	state.cast = { channel = true, notInterruptible = false }
+	fire(env, "UNIT_SPELLCAST_EMPOWER_START")
+	check("empowered cast lights the glow", icon.glow.alpha == 1)
+	state.interruptSlot = 1205
+	fire(env, "ACTIONBAR_PAGE_CHANGED")
+	check("page change finds the interrupt again", icon.shown == true)
+	state.settings.interruptHelper:SetValue(false)
+	check("turned off hands the cast bar straight back to Blizzard", castBar.point[2] == "default" and icon.shown == false)
 end
 
 -- Gathering tracking

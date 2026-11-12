@@ -18,6 +18,7 @@ local OPTIONS = {
 	{ key = "cooldownManager", label = "직업별 쿨다운·버프 표시 (쿨다운 관리자)", default = true, refresh = "RefreshCVars" },
 	{ key = "rangeColor", label = "사거리 밖 버튼 빨갛게", default = true, refresh = "RefreshRange" },
 	{ key = "threatNumbers", label = "대상 프레임에 위협 수치", default = true, refresh = "RefreshCVars" },
+	{ key = "interruptHelper", label = "대상 프레임 옆에 대상 시전바와 내 차단기", default = true, refresh = "RefreshInterrupt" },
 	{ key = "fadeBars", label = "비전투 시 액션바 흐리게", default = true, refresh = "RefreshBarFade" },
 	{ key = "fadeAlpha", label = "흐릴 때 불투명도", default = 0.4, min = 0.1, max = 1, step = 0.05, refresh = "RefreshBarFade" },
 	{ header = "편의" },

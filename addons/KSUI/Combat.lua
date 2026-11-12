@@ -1,4 +1,5 @@
--- Recolors and fades Blizzard's action buttons. Neither touches protected state, so both work in combat.
+-- Recolors and fades Blizzard's action buttons and shows your interrupt by the target. None of it calls protected
+-- functions on secure frames.
 
 local _, ns = ...
 
@@ -74,4 +75,103 @@ function ns.RefreshBarFade()
 			bar:SetAlpha(alpha)
 		end
 	end
+end
+
+-- The target's cast bar sits beside the target frame with your interrupt in front of it. In instances the cast and
+-- cooldown values can be secret, so they only go to setters that accept secrets and are never tested here.
+local INTERRUPT_SIZE = 36
+local CAST_BAR_GAP = 28
+local CAST_EVENTS = {
+	"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED",
+	"UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_STOP", "UNIT_SPELLCAST_EMPOWER_START", "UNIT_SPELLCAST_EMPOWER_STOP",
+	"UNIT_SPELLCAST_INTERRUPTIBLE", "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
+}
+
+local interrupt, interruptSlot
+
+-- Lit while the target casts something that can be interrupted.
+local function refreshGlow()
+	local name, _, _, _, _, _, _, notInterruptible = UnitCastingInfo("target")
+	if not issecretvalue(name) and name == nil then
+		name, _, _, _, _, _, notInterruptible = UnitChannelInfo("target")
+	end
+	if not issecretvalue(name) and name == nil then
+		interrupt.glow:SetAlpha(0)
+	elseif issecretvalue(notInterruptible) then
+		interrupt.glow:SetAlphaFromBoolean(notInterruptible, 0, 1)
+	else
+		interrupt.glow:SetAlpha(notInterruptible and 0 or 1)
+	end
+end
+
+local function refreshInterruptCooldown()
+	if interruptSlot then
+		interrupt.cooldown:SetCooldownFromDurationObject(C_ActionBar.GetActionCooldownDuration(interruptSlot, true))
+	end
+end
+
+local function placeCastBar(castBar)
+	if ns.db.interruptHelper then
+		castBar:ClearAllPoints()
+		castBar:SetPoint("LEFT", interrupt, "RIGHT", CAST_BAR_GAP, 0)
+	end
+end
+
+-- The interrupt is whichever spell on your bars the game marks as one, so no class list is kept.
+function ns.RefreshInterrupt()
+	interruptSlot = nil
+	ns.ForEachActionButton(function(button)
+		local slot = button.action
+		if not interruptSlot and slot and C_ActionBar.HasAction(slot) and C_ActionBar.IsInterruptAction(slot) then
+			interruptSlot = slot
+		end
+	end)
+	interrupt:SetShown(ns.db.interruptHelper and interruptSlot ~= nil)
+	if interruptSlot then
+		interrupt.icon:SetTexture(C_ActionBar.GetActionTexture(interruptSlot))
+		refreshInterruptCooldown()
+	end
+	refreshGlow()
+	if ns.db.interruptHelper then
+		placeCastBar(TargetFrame.spellbar)
+	else
+		TargetFrame.spellbar:AdjustPosition()
+	end
+end
+
+-- A child of the target frame, so it hides along with it when there is no target.
+function ns.InitInterrupt()
+	interrupt = CreateFrame("Frame", nil, TargetFrame)
+	interrupt:SetSize(INTERRUPT_SIZE, INTERRUPT_SIZE)
+	interrupt:SetPoint("LEFT", TargetFrame, "RIGHT", 4, 0)
+	interrupt.glow = interrupt:CreateTexture(nil, "BACKGROUND")
+	interrupt.glow:SetPoint("TOPLEFT", -3, 3)
+	interrupt.glow:SetPoint("BOTTOMRIGHT", 3, -3)
+	interrupt.glow:SetColorTexture(1, 0.8, 0.1)
+	interrupt.icon = interrupt:CreateTexture(nil, "ARTWORK")
+	interrupt.icon:SetAllPoints()
+	interrupt.cooldown = CreateFrame("Cooldown", nil, interrupt, "CooldownFrameTemplate")
+	interrupt.cooldown:SetAllPoints()
+	hooksecurefunc(TargetFrame.spellbar, "AdjustPosition", placeCastBar)
+
+	local events = CreateFrame("Frame")
+	for _, event in ipairs(CAST_EVENTS) do
+		events:RegisterUnitEvent(event, "target")
+	end
+	events:RegisterEvent("PLAYER_TARGET_CHANGED")
+	-- Paging and stance changes swap which actions the buttons hold.
+	events:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
+	events:RegisterEvent("ACTIONBAR_PAGE_CHANGED")
+	events:RegisterEvent("UPDATE_BONUS_ACTIONBAR")
+	events:RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN")
+	events:SetScript("OnEvent", function(_, event)
+		if event == "ACTIONBAR_SLOT_CHANGED" or event == "ACTIONBAR_PAGE_CHANGED" or event == "UPDATE_BONUS_ACTIONBAR" then
+			ns.RefreshInterrupt()
+		elseif event == "ACTIONBAR_UPDATE_COOLDOWN" then
+			refreshInterruptCooldown()
+		else
+			refreshGlow()
+		end
+	end)
+	ns.RefreshInterrupt()
 end
