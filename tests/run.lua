@@ -213,7 +213,7 @@ local function world(state)
 	env.SlashCmdList = {}
 	env.Enum = {
 		EditModeSystem = { ActionBar = 0, CastBar = 1, Minimap = 2, UnitFrame = 3, AuraFrame = 6, ChatFrame = 8, HudTooltip = 11,
-			ObjectiveTracker = 12, MicroMenu = 13, Bags = 14, StatusTrackingBar = 15, CooldownViewer = 20 },
+			ObjectiveTracker = 12, MicroMenu = 13, Bags = 14, StatusTrackingBar = 15, DurabilityFrame = 16, CooldownViewer = 20 },
 		EditModeCooldownViewerSystemIndices = { Essential = 1, Utility = 2, BuffIcon = 3, BuffBar = 4 },
 		EditModeActionBarSystemIndices = { MainBar = 1, Bar2 = 2, Bar3 = 3, RightBar1 = 4, RightBar2 = 5, StanceBar = 11, PetActionBar = 12 },
 		EditModeActionBarSetting = { Orientation = 0, NumRows = 1, NumIcons = 2, IconSize = 3, AlwaysShowButtons = 9 },
@@ -568,7 +568,7 @@ local function systems(playerX)
 		{ system = 20, systemIndex = 1, anchorInfo = { point = "BOTTOM", offsetY = 310 }, isInDefaultPosition = true },
 		{ system = 20, systemIndex = 2, anchorInfo = { point = "BOTTOM", offsetY = 240 }, isInDefaultPosition = true },
 		{ system = 20, systemIndex = 3, anchorInfo = { point = "BOTTOM", offsetY = 370 }, isInDefaultPosition = true },
-		{ system = 20, systemIndex = 4, anchorInfo = { point = "BOTTOM", offsetX = 420, offsetY = 430 }, isInDefaultPosition = true },
+		{ system = 20, systemIndex = 4, anchorInfo = { point = "BOTTOM", offsetX = 420, offsetY = 430 }, isInDefaultPosition = true },		{ system = 16, anchorInfo = { point = "RIGHT" }, isInDefaultPosition = true },
 	}
 end
 
@@ -637,6 +637,10 @@ do
 	check("moved right bar hides empty slots", v1[9] == 0)
 	check("stance bar above the new row", above(stance, "MultiBarRight"))
 	check("pet bar above the new row", above(pet, "MultiBarLeft"))
+	local durability = layout.systems[#layout.systems]
+	check("durability figure on the right end of the bar row", durability.system == 16
+		and durability.anchorInfo.point == "BOTTOMRIGHT" and durability.anchorInfo.relativeTo == "MultiBarLeft"
+		and durability.anchorInfo.relativePoint == "TOPRIGHT" and durability.anchorInfo.offsetY == 4 and not durability.isInDefaultPosition)
 	local cast = layout.systems[12]
 	check("cast bar on top of the minimap", cast.anchorInfo.point == "BOTTOM" and cast.anchorInfo.relativeTo == "MinimapCluster"
 		and cast.anchorInfo.relativePoint == "TOP" and cast.anchorInfo.offsetX == 0 and cast.anchorInfo.offsetY == 6 and not cast.isInDefaultPosition)

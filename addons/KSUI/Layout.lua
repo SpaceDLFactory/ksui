@@ -91,6 +91,9 @@ local function moveFrames(layout)
 		},
 		-- Above the tracker, clear of the right end of the bottom bars.
 		[kinds.HudTooltip] = { [0] = { anchor("BOTTOMRIGHT", "ObjectiveTrackerFrame", "TOPRIGHT", 0, 10) } },
+		-- The armor figure and its repair warning leave the middle of the right edge for the right end of the
+		-- bars beside the minimap. A pet bar starts from the left end of that row, so the two stay apart.
+		[kinds.DurabilityFrame] = { [0] = { anchor("BOTTOMRIGHT", "MultiBarLeft", "TOPRIGHT", 0, BAR_SPACING) } },
 		[actionBar] = {
 			[bars.MainBar] = { anchor("BOTTOMRIGHT", "MinimapCluster", "BOTTOMLEFT", -BARS_BESIDE_MINIMAP, 0) },
 			[bars.Bar2] = { above("MainActionBar") },
