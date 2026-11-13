@@ -95,7 +95,10 @@ local function moveFrames(layout)
 		-- bars beside the minimap. A pet bar starts from the left end of that row, so the two stay apart.
 		[kinds.DurabilityFrame] = { [0] = { anchor("BOTTOMRIGHT", "MultiBarLeft", "TOPRIGHT", 0, BAR_SPACING) } },
 		[actionBar] = {
-			[bars.MainBar] = { anchor("BOTTOMRIGHT", "MinimapCluster", "BOTTOMLEFT", -BARS_BESIDE_MINIMAP, 0) },
+			-- Bar art off: the gargoyles at both ends would sit beside the minimap and the bars right of it.
+			[bars.MainBar] = { anchor("BOTTOMRIGHT", "MinimapCluster", "BOTTOMLEFT", -BARS_BESIDE_MINIMAP, 0), function(system)
+				setValues(system, { [Enum.EditModeActionBarSetting.HideBarArt] = 1 })
+			end },
 			[bars.Bar2] = { above("MainActionBar") },
 			[bars.Bar3] = { above("MicroMenuContainer") },
 			[bars.RightBar1] = { above("MultiBarBottomLeft"), horizontalBar },
