@@ -42,6 +42,10 @@ local function horizontalBar(system)
 	})
 end
 
+local function hideEndCap(system)
+	setValues(system, { [Enum.EditModeMainActionBarEndCapSetting.Hidden] = 1 })
+end
+
 local function moveFrames(layout)
 	local db = ns.db
 	local function anchor(point, relativeTo, relativePoint, offsetX, offsetY)
@@ -95,16 +99,19 @@ local function moveFrames(layout)
 		-- bars beside the minimap. A pet bar starts from the left end of that row, so the two stay apart.
 		[kinds.DurabilityFrame] = { [0] = { anchor("BOTTOMRIGHT", "MultiBarLeft", "TOPRIGHT", 0, BAR_SPACING) } },
 		[actionBar] = {
-			-- Bar art off: the gargoyles at both ends would sit beside the minimap and the bars right of it.
-			[bars.MainBar] = { anchor("BOTTOMRIGHT", "MinimapCluster", "BOTTOMLEFT", -BARS_BESIDE_MINIMAP, 0), function(system)
-				setValues(system, { [Enum.EditModeActionBarSetting.HideBarArt] = 1 })
-			end },
+			[bars.MainBar] = { anchor("BOTTOMRIGHT", "MinimapCluster", "BOTTOMLEFT", -BARS_BESIDE_MINIMAP, 0) },
 			[bars.Bar2] = { above("MainActionBar") },
 			[bars.Bar3] = { above("MicroMenuContainer") },
 			[bars.RightBar1] = { above("MultiBarBottomLeft"), horizontalBar },
 			[bars.RightBar2] = { above("MultiBarBottomRight"), horizontalBar },
 			[bars.StanceBar] = { above("MultiBarRight") },
 			[bars.PetActionBar] = { above("MultiBarLeft") },
+		},
+		-- Forever's gargoyles are their own systems. Split around the minimap they end up at the far left of the main
+		-- bar and past the bags, so both are hidden where they stand.
+		[kinds.MainActionBarEndCap] = {
+			[Enum.EditModeMainActionBarEndCapSystemIndices.EndCapLeft] = { false, hideEndCap },
+			[Enum.EditModeMainActionBarEndCapSystemIndices.EndCapRight] = { false, hideEndCap },
 		},
 		[castBar] = {
 			-- On top of the minimap.
@@ -123,9 +130,11 @@ local function moveFrames(layout)
 	for _, system in ipairs(layout.systems) do
 		local move = moves[system.system] and moves[system.system][system.systemIndex or 0]
 		if move then
-			system.anchorInfo = move[1]
-			system.anchorInfo2 = nil
-			system.isInDefaultPosition = false
+			if move[1] then
+				system.anchorInfo = move[1]
+				system.anchorInfo2 = nil
+				system.isInDefaultPosition = false
+			end
 			if move[2] then
 				move[2](system)
 			end

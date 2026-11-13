@@ -253,10 +253,13 @@ local function world(state)
 	env.SlashCmdList = {}
 	env.Enum = {
 		EditModeSystem = { ActionBar = 0, CastBar = 1, Minimap = 2, UnitFrame = 3, AuraFrame = 6, ChatFrame = 8, HudTooltip = 11,
-			ObjectiveTracker = 12, MicroMenu = 13, Bags = 14, StatusTrackingBar = 15, DurabilityFrame = 16, CooldownViewer = 20 },
+			ObjectiveTracker = 12, MicroMenu = 13, Bags = 14, StatusTrackingBar = 15, DurabilityFrame = 16, CooldownViewer = 20,
+			MainActionBarEndCap = 26 },
 		EditModeCooldownViewerSystemIndices = { Essential = 1, Utility = 2, BuffIcon = 3, BuffBar = 4 },
 		EditModeActionBarSystemIndices = { MainBar = 1, Bar2 = 2, Bar3 = 3, RightBar1 = 4, RightBar2 = 5, StanceBar = 11, PetActionBar = 12 },
-		EditModeActionBarSetting = { Orientation = 0, NumRows = 1, NumIcons = 2, IconSize = 3, HideBarArt = 6, AlwaysShowButtons = 9 },
+		EditModeActionBarSetting = { Orientation = 0, NumRows = 1, NumIcons = 2, IconSize = 3, AlwaysShowButtons = 9 },
+		EditModeMainActionBarEndCapSetting = { Hidden = 0 },
+		EditModeMainActionBarEndCapSystemIndices = { EndCapLeft = 1, EndCapRight = 2 },
 		ActionBarOrientation = { Horizontal = 0, Vertical = 1 },
 		EditModeCastBarSetting = { BarSize = 0, LockToPlayerFrame = 1 },
 		EditModeAuraFrameSystemIndices = { BuffFrame = 1, DebuffFrame = 2 },
@@ -580,9 +583,7 @@ local function systems(playerX)
 		{ system = 3, systemIndex = 1, anchorInfo = { point = "TOPLEFT", offsetX = playerX }, isInDefaultPosition = true },
 		{ system = 3, systemIndex = 2, anchorInfo = { point = "TOPLEFT", offsetX = 250 }, isInDefaultPosition = true },
 		{ system = 3, systemIndex = 3, anchorInfo = { point = "CENTER", offsetX = 7 }, isInDefaultPosition = true },
-		{ system = 0, systemIndex = 1, anchorInfo = { point = "BOTTOM", offsetX = 1 }, isInDefaultPosition = false, settings = {
-			{ setting = 6, value = 0 },
-		} },
+		{ system = 0, systemIndex = 1, anchorInfo = { point = "BOTTOM", offsetX = 1 }, isInDefaultPosition = false },
 		{ system = 3, systemIndex = 4, anchorInfo = { point = "TOPLEFT", offsetX = 0 }, isInDefaultPosition = true },
 		{ system = 3, systemIndex = 5, anchorInfo = { point = "TOPLEFT", offsetX = 0 }, isInDefaultPosition = true, settings = {
 			{ setting = 9, value = 0 }, { setting = 10, value = 26 }, { setting = 11, value = 8 },
@@ -618,7 +619,11 @@ local function systems(playerX)
 		{ system = 20, systemIndex = 1, anchorInfo = { point = "BOTTOM", offsetY = 310 }, isInDefaultPosition = true },
 		{ system = 20, systemIndex = 2, anchorInfo = { point = "BOTTOM", offsetY = 240 }, isInDefaultPosition = true },
 		{ system = 20, systemIndex = 3, anchorInfo = { point = "BOTTOM", offsetY = 370 }, isInDefaultPosition = true },
-		{ system = 20, systemIndex = 4, anchorInfo = { point = "BOTTOM", offsetX = 420, offsetY = 430 }, isInDefaultPosition = true },		{ system = 16, anchorInfo = { point = "RIGHT" }, isInDefaultPosition = true },
+		{ system = 20, systemIndex = 4, anchorInfo = { point = "BOTTOM", offsetX = 420, offsetY = 430 }, isInDefaultPosition = true },		{ system = 26, systemIndex = 1, anchorInfo = { point = "RIGHT", relativeTo = "MainActionBar" }, isInDefaultPosition = true,
+			settings = { { setting = 0, value = 0 } } },
+		{ system = 26, systemIndex = 2, anchorInfo = { point = "LEFT", relativeTo = "MainActionBar" }, isInDefaultPosition = true,
+			settings = { { setting = 0, value = 0 } } },
+		{ system = 16, anchorInfo = { point = "RIGHT" }, isInDefaultPosition = true },
 	}
 end
 
@@ -713,8 +718,11 @@ do
 		and micro.anchorInfo.relativePoint == "BOTTOMRIGHT" and micro.anchorInfo.offsetX == 8 and not micro.isInDefaultPosition)
 	check("bags keep following the micro menu", bags.isInDefaultPosition and bags.anchorInfo.relativeTo == "MicroMenuContainer")
 	check("bar 2 on the main bar", above(bar2, "MainActionBar"))
-	check("main bar art and gargoyles hidden", values(layout.systems[4])[6] == 1)
-	check("preset main bar art untouched", saved[2].systems[4].settings[1].value == 0)
+	local capLeft, capRight = layout.systems[#layout.systems - 2], layout.systems[#layout.systems - 1]
+	check("both gargoyles hidden", capLeft.system == 26 and values(capLeft)[0] == 1 and values(capRight)[0] == 1)
+	check("gargoyles keep their anchors", capLeft.isInDefaultPosition and capLeft.anchorInfo.relativeTo == "MainActionBar"
+		and capRight.isInDefaultPosition)
+	check("preset gargoyles untouched", saved[2].systems[#saved[2].systems - 2].settings[1].value == 0)
 	check("bar 3 on the micro menu", above(bar3, "MicroMenuContainer"))
 	check("experience bar at the bottom center", xp1.anchorInfo.point == "BOTTOM" and xp1.anchorInfo.relativeTo == "UIParent"
 		and xp1.anchorInfo.offsetX == 0 and xp1.anchorInfo.offsetY == 0 and not xp1.isInDefaultPosition)
