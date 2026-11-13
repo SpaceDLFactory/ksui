@@ -77,34 +77,57 @@ function ns.RefreshBarFade()
 	end
 end
 
--- The target's cast bar sits beside the target frame with your interrupt in front of it. In instances the cast and
--- cooldown values can be secret, so they only go to setters that accept secrets and are never tested here.
+-- Your interrupt sits beside the target frame with the target's cast bar after it. Blizzard's own target cast bar
+-- can't be moved by an addon once the target has had auras, so KSUI draws its own and keeps Blizzard's at zero alpha.
+-- In instances the cast and cooldown values can be secret, so they only go to setters that accept secrets and are
+-- never tested here.
 local INTERRUPT_SIZE = 36
-local CAST_BAR_GAP = 28
+local CAST_BAR_WIDTH, CAST_BAR_HEIGHT = 160, 18
+local CAN_INTERRUPT = CreateColor(1, 0.7, 0)
+local SHIELDED = CreateColor(0.6, 0.6, 0.6)
 local CAST_EVENTS = {
 	"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED",
 	"UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_STOP", "UNIT_SPELLCAST_EMPOWER_START", "UNIT_SPELLCAST_EMPOWER_STOP",
 	"UNIT_SPELLCAST_INTERRUPTIBLE", "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
+	-- Pushback and channel changes move the end time.
+	"UNIT_SPELLCAST_DELAYED", "UNIT_SPELLCAST_CHANNEL_UPDATE", "UNIT_SPELLCAST_EMPOWER_UPDATE",
 }
 
 -- A stun stands in until the class learns a real interrupt, since it stops casts too. Matched by name so any rank works.
 local STAND_IN = { PALADIN = 853 } -- Hammer of Justice
 
-local interrupt, interruptSlot
+local interrupt, interruptSlot, castBar
 
--- Lit while the target casts something that can be interrupted.
-local function refreshGlow()
-	local name, _, _, _, _, _, _, notInterruptible = UnitCastingInfo("target")
+local function readCast()
+	local name, text, texture, startMs, endMs, _, _, notInterruptible = UnitCastingInfo("target")
 	if not issecretvalue(name) and name == nil then
-		name, _, _, _, _, _, notInterruptible = UnitChannelInfo("target")
+		name, text, texture, startMs, endMs, _, notInterruptible = UnitChannelInfo("target")
 	end
-	if not issecretvalue(name) and name == nil then
+	return name, text, texture, startMs, endMs, notInterruptible
+end
+
+-- The bar fills from the cast's start to its end time; OnUpdate only feeds it the clock, so no secret is computed on.
+local function refreshCast()
+	local name, text, texture, startMs, endMs, notInterruptible = readCast()
+	if not ns.db.interruptHelper or (not issecretvalue(name) and name == nil) then
 		interrupt.glow:SetAlpha(0)
-	elseif issecretvalue(notInterruptible) then
+		castBar:Hide()
+		return
+	end
+	castBar.icon:SetTexture(texture)
+	castBar.text:SetText(text)
+	castBar:SetMinMaxValues(startMs, endMs)
+	castBar:SetValue(GetTime() * 1000)
+	local fill = castBar:GetStatusBarTexture()
+	if issecretvalue(notInterruptible) then
 		interrupt.glow:SetAlphaFromBoolean(notInterruptible, 0, 1)
+		fill:SetVertexColorFromBoolean(notInterruptible, SHIELDED, CAN_INTERRUPT)
 	else
 		interrupt.glow:SetAlpha(notInterruptible and 0 or 1)
+		local color = notInterruptible and SHIELDED or CAN_INTERRUPT
+		fill:SetVertexColor(color.r, color.g, color.b)
 	end
+	castBar:Show()
 end
 
 local function refreshInterruptCooldown()
@@ -113,10 +136,14 @@ local function refreshInterruptCooldown()
 	end
 end
 
-local function placeCastBar(castBar)
+-- Blizzard sets the alpha back to 1 at every cast start. Its fade-out only plays above zero alpha, so none shows.
+-- An interrupted cast instead plays a hold at full alpha, which is stopped.
+local function hideBlizzardCastBar(bar)
 	if ns.db.interruptHelper then
-		castBar:ClearAllPoints()
-		castBar:SetPoint("LEFT", interrupt, "RIGHT", CAST_BAR_GAP, 0)
+		if bar.HoldFadeOutAnim then
+			bar.HoldFadeOutAnim:Stop()
+		end
+		bar:SetAlpha(0)
 	end
 end
 
@@ -147,15 +174,11 @@ function ns.RefreshInterrupt()
 		interrupt.icon:SetTexture(C_ActionBar.GetActionTexture(interruptSlot))
 		refreshInterruptCooldown()
 	end
-	refreshGlow()
-	if ns.db.interruptHelper then
-		placeCastBar(TargetFrame.spellbar)
-	else
-		TargetFrame.spellbar:AdjustPosition()
-	end
+	refreshCast()
+	TargetFrame.spellbar:SetAlpha(ns.db.interruptHelper and 0 or 1)
 end
 
--- A child of the target frame, so it hides along with it when there is no target.
+-- Both are children of the target frame, so they hide along with it when there is no target.
 function ns.InitInterrupt()
 	interrupt = CreateFrame("Frame", nil, TargetFrame)
 	interrupt:SetSize(INTERRUPT_SIZE, INTERRUPT_SIZE)
@@ -168,7 +191,26 @@ function ns.InitInterrupt()
 	interrupt.icon:SetAllPoints()
 	interrupt.cooldown = CreateFrame("Cooldown", nil, interrupt, "CooldownFrameTemplate")
 	interrupt.cooldown:SetAllPoints()
-	hooksecurefunc(TargetFrame.spellbar, "AdjustPosition", placeCastBar)
+
+	-- Anchored to the interrupt even when that is hidden, so the bar keeps one spot.
+	castBar = CreateFrame("StatusBar", nil, TargetFrame)
+	castBar:SetSize(CAST_BAR_WIDTH, CAST_BAR_HEIGHT)
+	castBar:SetPoint("LEFT", interrupt, "RIGHT", CAST_BAR_HEIGHT + 8, 0)
+	castBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+	castBar.background = castBar:CreateTexture(nil, "BACKGROUND")
+	castBar.background:SetAllPoints()
+	castBar.background:SetColorTexture(0, 0, 0, 0.6)
+	castBar.icon = castBar:CreateTexture(nil, "ARTWORK")
+	castBar.icon:SetSize(CAST_BAR_HEIGHT, CAST_BAR_HEIGHT)
+	castBar.icon:SetPoint("RIGHT", castBar, "LEFT", -4, 0)
+	castBar.text = castBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	castBar.text:SetPoint("CENTER")
+	castBar:SetScript("OnUpdate", function(self)
+		self:SetValue(GetTime() * 1000)
+	end)
+	castBar:Hide()
+	hooksecurefunc(TargetFrame.spellbar, "ApplyAlpha", hideBlizzardCastBar)
+	hooksecurefunc(TargetFrame.spellbar, "PlayInterruptAnims", hideBlizzardCastBar)
 
 	local events = CreateFrame("Frame")
 	for _, event in ipairs(CAST_EVENTS) do
@@ -186,7 +228,7 @@ function ns.InitInterrupt()
 		elseif event == "ACTIONBAR_UPDATE_COOLDOWN" then
 			refreshInterruptCooldown()
 		else
-			refreshGlow()
+			refreshCast()
 		end
 	end)
 	ns.RefreshInterrupt()

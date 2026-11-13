@@ -27,6 +27,8 @@ local function texture()
 	function t:SetAlphaFromBoolean(v, yes, no) self.alphaFrom = { v, yes, no } end
 	function t:SetPoint(...) self.point = { ... } end
 	function t:SetAllPoints() end
+	function t:SetSize() end
+	function t:SetVertexColorFromBoolean(v, yes, no) self.colorFrom = { v, yes, no } end
 	return t
 end
 
@@ -106,6 +108,8 @@ local function world(state)
 
 	function env.CreateFrame(kind, _, parent, template)
 		local f = { registered = {}, scripts = {}, kind = kind, parent = parent, template = template }
+		state.frames = state.frames or {}
+		state.frames[#state.frames + 1] = f
 		function f:RegisterEvent(e) self.registered[e] = true end
 		function f:RegisterUnitEvent(e, unit)
 			assert(unit == "target")
@@ -122,6 +126,13 @@ local function world(state)
 		function f:SetShown(v) self.shown = v end
 		function f:CreateTexture() return texture() end
 		function f:SetCooldownFromDurationObject(d) self.duration = d end
+		function f:CreateFontString() local t = texture(); function t:SetText(v) self.text = v end; return t end
+		function f:Show() self.shown = true end
+		function f:Hide() self.shown = false end
+		function f:SetStatusBarTexture() self.fill = texture() end
+		function f:GetStatusBarTexture() return self.fill end
+		function f:SetMinMaxValues(a, b) self.range = { a, b } end
+		function f:SetValue(v) self.value = v end
 		return f
 	end
 	env.CharacterFrame, env.PaperDollFrame = { name = "CharacterFrame" }, { name = "PaperDollFrame" }
@@ -192,8 +203,8 @@ local function world(state)
 		local c = state.cast
 		if not c or (c.channel or false) ~= channel then return nil end
 		local name = c.secret and SECRET or "Fireball"
-		if channel then return name, "", 1, 0, 1, false, c.notInterruptible end
-		return name, "", 1, 0, 1, false, 7, c.notInterruptible
+		if channel then return name, "Drain", 1, 99000, 102000, false, c.notInterruptible end
+		return name, "Fireball", 1, 99000, 102000, false, 7, c.notInterruptible
 	end
 	-- state.actions = { slot -> spellID }
 	function env.GetActionInfo(slot) local id = (state.actions or {})[slot]; if id then return "spell", id end end
@@ -280,10 +291,13 @@ local function world(state)
 		},
 		PlayerFrameContent = { PlayerFrameContentMain = { HealthBarsContainer = { HealthBar = bar() } } },
 	}
-	local spellbar = {}
-	function spellbar:AdjustPosition() self.point = { "TOPLEFT", "default" } end
-	function spellbar:ClearAllPoints() self.point = nil end
-	function spellbar:SetPoint(...) self.point = { ... } end
+	local spellbar = { alpha = 1 }
+	function spellbar:ApplyAlpha(a) self:SetAlpha(a) end
+	spellbar.HoldFadeOutAnim = { Stop = function(self) self.stopped = true end }
+	function spellbar:PlayInterruptAnims() self.HoldFadeOutAnim.stopped = false; self:SetAlpha(1) end
+	function spellbar:SetAlpha(a) self.alpha = a end
+	function env.CreateColor(r, g, b) return { r = r, g = g, b = b } end
+	function env.GetTime() return 100 end
 	env.TargetFrame = {
 		spellbar = spellbar,
 		TargetFrameContainer = { FrameTexture = texture() },
@@ -1046,56 +1060,73 @@ do
 end
 
 -- Interrupt and target cast bar
+local function interruptParts(state, env)
+	local icon, castBar
+	for _, f in ipairs(state.frames) do
+		if f.parent == env.TargetFrame and f.kind == "Frame" then icon = f end
+		if f.parent == env.TargetFrame and f.kind == "StatusBar" then castBar = f end
+	end
+	return icon, castBar
+end
+
 do
 	local state = { units = { player = mage }, interruptSlot = 1205 }
-	local env, ns = boot(state)
-	local castBar = env.TargetFrame.spellbar
-	local function interruptFrame()
-		for _, h in ipairs(env.events) do
-			if h.frame.registered.UNIT_SPELLCAST_START then return h.frame end
-		end
-	end
-	check("interrupt events only for the target", interruptFrame() ~= nil)
-	-- The icon frame is the one the cast bar is anchored to.
-	local icon = castBar.point and castBar.point[2]
-	check("cast bar beside the interrupt", castBar.point[1] == "LEFT" and icon ~= nil and castBar.point[3] == "RIGHT")
-	check("interrupt next to the target frame", icon.parent == env.TargetFrame and icon.point[2] == env.TargetFrame)
+	local env = boot(state)
+	local icon, castBar = interruptParts(state, env)
+	local blizzard = env.TargetFrame.spellbar
+	check("interrupt next to the target frame", icon.point[2] == env.TargetFrame and icon.point[3] == "RIGHT")
+	check("cast bar after the interrupt", castBar.point[1] == "LEFT" and castBar.point[2] == icon)
 	check("interrupt found on the bars", icon.shown == true and icon.icon.file == "icon1205")
 	check("interrupt cooldown ignores the global cooldown", icon.cooldown.duration.slot == 1205 and icon.cooldown.duration.ignoreGCD == true)
-	check("no glow without a cast", icon.glow.alpha == 0)
+	check("no glow or bar without a cast", icon.glow.alpha == 0 and castBar.shown == false)
+	check("Blizzard target cast bar kept invisible", blizzard.alpha == 0)
 	state.cast = { notInterruptible = false }
 	fire(env, "UNIT_SPELLCAST_START")
+	blizzard:ApplyAlpha(1)
+	check("Blizzard bar stays invisible after a cast start", blizzard.alpha == 0)
+	blizzard:PlayInterruptAnims()
+	check("Blizzard interrupt hold stopped", blizzard.alpha == 0 and blizzard.HoldFadeOutAnim.stopped)
+	state.cast = { notInterruptible = false }
+	fire(env, "UNIT_SPELLCAST_DELAYED")
+	check("pushback refreshes the bar", castBar.shown == true)
 	check("glow on an interruptible cast", icon.glow.alpha == 1)
+	check("cast bar shows the cast", castBar.shown == true and castBar.text.text == "Fireball" and castBar.icon.file == 1
+		and castBar.range[1] == 99000 and castBar.range[2] == 102000 and castBar.value == 100000)
+	check("interruptible cast colored", castBar.fill.color[1] == 1 and castBar.fill.color[2] == 0.7)
+	castBar.value = nil
+	castBar.scripts.OnUpdate(castBar)
+	check("bar follows the clock", castBar.value == 100000)
 	state.cast = { channel = true, notInterruptible = true }
 	fire(env, "UNIT_SPELLCAST_CHANNEL_START")
-	check("no glow on a shielded channel", icon.glow.alpha == 0)
+	check("no glow on a shielded channel", icon.glow.alpha == 0 and castBar.text.text == "Drain" and castBar.fill.color[1] == 0.6)
 	state.cast = { secret = true, notInterruptible = SECRET }
 	fire(env, "UNIT_SPELLCAST_START")
 	check("secret interrupt flag passed through untested", icon.glow.alphaFrom ~= nil and icon.glow.alphaFrom[1] == SECRET
-		and icon.glow.alphaFrom[2] == 0 and icon.glow.alphaFrom[3] == 1)
+		and icon.glow.alphaFrom[2] == 0 and icon.glow.alphaFrom[3] == 1 and castBar.fill.colorFrom[1] == SECRET
+		and castBar.fill.colorFrom[2].r == 0.6 and castBar.shown == true)
 	state.cast = nil
 	fire(env, "UNIT_SPELLCAST_STOP")
-	check("glow off when the cast ends", icon.glow.alpha == 0)
-	castBar:AdjustPosition()
-	check("cast bar stays beside after Blizzard moves it", castBar.point[1] == "LEFT" and castBar.point[2] == icon)
-	state.interruptSlot = nil
-	fire(env, "ACTIONBAR_SLOT_CHANGED")
-	check("no interrupt on the bars hides the icon", icon.shown == false)
+	check("glow and bar off when the cast ends", icon.glow.alpha == 0 and castBar.shown == false)
 	state.cast = { channel = true, notInterruptible = false }
 	fire(env, "UNIT_SPELLCAST_EMPOWER_START")
 	check("empowered cast lights the glow", icon.glow.alpha == 1)
+	state.interruptSlot = nil
+	fire(env, "ACTIONBAR_SLOT_CHANGED")
+	check("no interrupt on the bars hides the icon", icon.shown == false)
 	state.interruptSlot = 1205
 	fire(env, "ACTIONBAR_PAGE_CHANGED")
 	check("page change finds the interrupt again", icon.shown == true)
 	state.settings.interruptHelper:SetValue(false)
-	check("turned off hands the cast bar straight back to Blizzard", castBar.point[2] == "default" and icon.shown == false)
+	check("turned off gives Blizzard its bar back", blizzard.alpha == 1 and icon.shown == false and castBar.shown == false)
+	blizzard:ApplyAlpha(1)
+	check("Blizzard bar left alone when off", blizzard.alpha == 1)
 end
 
 do
 	local paladin = { player = true, class = "PALADIN" }
 	local state = { units = { player = paladin }, actions = { [1202] = 20271, [1207] = 5588 } }
 	local env = boot(state)
-	local icon = env.TargetFrame.spellbar.point[2]
+	local icon = interruptParts(state, env)
 	check("paladin without an interrupt shows the stun, any rank", icon.shown == true and icon.icon.file == "icon1207")
 	state.interruptSlot = 2403
 	fire(env, "ACTIONBAR_SLOT_CHANGED")
