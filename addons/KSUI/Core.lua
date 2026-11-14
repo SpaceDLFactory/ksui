@@ -35,6 +35,7 @@ events:RegisterUnitEvent("UNIT_FACTION", "target")
 events:SetScript("OnEvent", function(_, event)
 	if event == "PLAYER_LOGIN" then
 		ns.InitSkin()
+		ns.InitMinimap()
 		ns.InitCombat()
 		ns.InitInterrupt()
 		ns.RefreshSkin()

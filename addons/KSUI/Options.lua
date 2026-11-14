@@ -8,6 +8,7 @@ local OPTIONS = {
 	{ key = "classColorBars", label = "체력바 직업색", default = true, refresh = "RefreshSkin" },
 	{ key = "healthPercent", label = "체력바에 퍼센트 표시", default = true, refresh = "RefreshCVars" },
 	{ key = "cropIcons", label = "아이콘 테두리 잘라내기", default = true, refresh = "RefreshSkin" },
+	{ key = "squareMinimap", label = "미니맵 네모로", default = true, refresh = "RefreshMinimap" },
 	{ header = "쿨다운" },
 	{ key = "cooldownNumbers", label = "쿨다운 숫자 표시", default = true, refresh = "RefreshCooldowns" },
 	{ key = "cooldownFontSize", label = "숫자 크기", default = 16, min = 10, max = 32, step = 1, refresh = "RefreshCooldowns" },

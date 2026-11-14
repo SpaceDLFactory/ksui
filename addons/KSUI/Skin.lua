@@ -123,6 +123,49 @@ function ns.RefreshSkin()
 	end
 end
 
+-- Blizzard_Minimap/Camelot/Minimap.lua uses the same mask for both rotation modes. The hybrid minimap used in
+-- some zones has its own round mask.
+local ROUND_MASK = "ui-hud-minimap-frame-generic-mask"
+local HYBRID_ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+-- A plain white texture that Blizzard's chat frames use, so it is known to exist in Forever.
+local SQUARE_MASK = "Interface\\ChatFrame\\ChatFrameBackground"
+local MINIMAP_BORDER = 2
+
+local minimapBorder
+
+function ns.RefreshMinimap()
+	local square = ns.db.squareMinimap
+	Minimap:SetMaskTexture(square and SQUARE_MASK or ROUND_MASK)
+	MinimapCompassTexture:SetShown(not square)
+	-- Blizzard shows the underlay only while the minimap rotates.
+	MinimapCompassTextureUnderlay:SetShown(not square and GetCVarBool("rotateMinimap"))
+	minimapBorder:SetShown(square)
+	if HybridMinimap then
+		HybridMinimap.CircleMask:SetTexture(square and SQUARE_MASK or HYBRID_ROUND_MASK,
+			"CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+	end
+end
+
+function ns.InitMinimap()
+	minimapBorder = CreateFrame("Frame", nil, Minimap, "BackdropTemplate")
+	minimapBorder:SetPoint("TOPLEFT", -MINIMAP_BORDER, MINIMAP_BORDER)
+	minimapBorder:SetPoint("BOTTOMRIGHT", MINIMAP_BORDER, -MINIMAP_BORDER)
+	minimapBorder:SetBackdrop({ edgeFile = SQUARE_MASK, edgeSize = MINIMAP_BORDER })
+	minimapBorder:SetBackdropBorderColor(0, 0, 0, 1)
+	-- Toggling rotation makes Blizzard put the round mask and frame back.
+	hooksecurefunc(MinimapCluster, "UpdateMinimapConfig", function()
+		if ns.db.squareMinimap then
+			ns.RefreshMinimap()
+		end
+	end)
+	EventUtil.ContinueOnAddOnLoaded("Blizzard_HybridMinimap", ns.RefreshMinimap)
+	-- Minimap button libraries ask this to place their buttons on the edge.
+	function GetMinimapShape()
+		return ns.db.squareMinimap and "SQUARE" or "ROUND"
+	end
+	ns.RefreshMinimap()
+end
+
 -- Raid frames and the target threat number stay Blizzard's, which keep working with secret values in instances.
 function ns.RefreshCVars()
 	-- A change made during combat is applied on PLAYER_REGEN_ENABLED.

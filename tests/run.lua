@@ -133,6 +133,8 @@ local function world(state)
 		function f:GetStatusBarTexture() return self.fill end
 		function f:SetMinMaxValues(a, b) self.range = { a, b } end
 		function f:SetValue(v) self.value = v end
+		function f:SetBackdrop(b) self.backdrop = b end
+		function f:SetBackdropBorderColor(r, g, b, a) self.borderColor = { r, g, b, a } end
 		return f
 	end
 	env.CharacterFrame, env.PaperDollFrame = { name = "CharacterFrame" }, { name = "PaperDollFrame" }
@@ -177,7 +179,18 @@ local function world(state)
 			return a, b, c, d
 		end
 	end
-	env.EventUtil = { ContinueOnAddOnLoaded = function(name, fn) state.loadedName = name; state.onLoaded = fn end }
+	state.addonLoaders = {}
+	env.EventUtil = { ContinueOnAddOnLoaded = function(name, fn)
+		if name == "KSUI" then state.loadedName = name; state.onLoaded = fn else state.addonLoaders[name] = fn end
+	end }
+	local function shownTexture() local t = texture(); function t:SetShown(v) self.shown = v end; return t end
+	env.Minimap = { SetMaskTexture = function(self, m) self.mask = m end }
+	env.MinimapCompassTexture, env.MinimapCompassTextureUnderlay = shownTexture(), shownTexture()
+	env.MinimapCluster = { UpdateMinimapConfig = function()
+		env.Minimap:SetMaskTexture("ui-hud-minimap-frame-generic-mask")
+		env.MinimapCompassTexture:SetShown(true)
+	end }
+	function env.GetCVarBool(name) assert(name == "rotateMinimap"); return state.rotate end
 	function env.issecretvalue(v) return v == SECRET end
 	function env.canaccesstable(t) assert(t ~= SECRET, "secret passed to canaccesstable"); return not t.locked end
 	function env.UnitExists(u) return state.units[u] ~= nil end
@@ -495,6 +508,34 @@ do
 	check("saved size honored", state.font[3] == 20)
 	check("saved value not overwritten", env.KSUIDB.frameX == 50)
 	check("missing value defaulted", env.KSUIDB.frameY == 220)
+end
+
+-- Square minimap
+do
+	local state = { units = { player = mage }, rotate = true }
+	local env = boot(state)
+	local square = "Interface\\ChatFrame\\ChatFrameBackground"
+	local border
+	for _, f in ipairs(state.frames) do
+		if f.parent == env.Minimap then border = f end
+	end
+	check("minimap square by default", env.Minimap.mask == square and env.MinimapCompassTexture.shown == false
+		and env.MinimapCompassTextureUnderlay.shown == false)
+	check("minimap border shown", border.shown == true and border.template == "BackdropTemplate" and border.borderColor[1] == 0)
+	check("minimap shape reported", env.GetMinimapShape() == "SQUARE")
+
+	env.MinimapCluster:UpdateMinimapConfig()
+	check("square kept after rotation toggle", env.Minimap.mask == square and env.MinimapCompassTexture.shown == false)
+
+	env.HybridMinimap = { CircleMask = texture() }
+	state.addonLoaders.Blizzard_HybridMinimap()
+	check("hybrid minimap squared", env.HybridMinimap.CircleMask.file == square)
+
+	state.settings.squareMinimap:SetValue(false)
+	check("round minimap restored", env.Minimap.mask == "ui-hud-minimap-frame-generic-mask"
+		and env.MinimapCompassTexture.shown == true and env.MinimapCompassTextureUnderlay.shown == true and border.shown == false)
+	check("hybrid round restored", env.HybridMinimap.CircleMask.file == "Interface\\CharacterFrame\\TempPortraitAlphaMask")
+	check("round shape reported", env.GetMinimapShape() == "ROUND")
 end
 
 -- Cooldowns
