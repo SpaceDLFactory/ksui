@@ -42,6 +42,11 @@ local function horizontalBar(system)
 	})
 end
 
+-- The bars stacked on the main bar and the bags leave no grid of empty squares when only partly filled.
+local function hideEmptySlots(system)
+	setValues(system, { [Enum.EditModeActionBarSetting.AlwaysShowButtons] = 0 })
+end
+
 local function hideEndCap(system)
 	setValues(system, { [Enum.EditModeMainActionBarEndCapSetting.Hidden] = 1 })
 end
@@ -100,8 +105,8 @@ local function moveFrames(layout)
 		[kinds.DurabilityFrame] = { [0] = { anchor("BOTTOMRIGHT", "MultiBarLeft", "TOPRIGHT", 0, BAR_SPACING) } },
 		[actionBar] = {
 			[bars.MainBar] = { anchor("BOTTOMRIGHT", "MinimapCluster", "BOTTOMLEFT", -BARS_BESIDE_MINIMAP, 0) },
-			[bars.Bar2] = { above("MainActionBar") },
-			[bars.Bar3] = { above("MicroMenuContainer") },
+			[bars.Bar2] = { above("MainActionBar"), hideEmptySlots },
+			[bars.Bar3] = { above("MicroMenuContainer"), hideEmptySlots },
 			[bars.RightBar1] = { above("MultiBarBottomLeft"), horizontalBar },
 			[bars.RightBar2] = { above("MultiBarBottomRight"), horizontalBar },
 			[bars.StanceBar] = { above("MultiBarRight") },

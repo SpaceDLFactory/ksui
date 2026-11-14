@@ -663,8 +663,12 @@ local function systems(playerX)
 			{ setting = 0, value = 40 }, { setting = 1, value = 0 },
 		} },
 		{ system = 11, anchorInfo = { point = "BOTTOMRIGHT" }, isInDefaultPosition = true },
-		{ system = 0, systemIndex = 2, anchorInfo = { point = "BOTTOM" }, isInDefaultPosition = true },
-		{ system = 0, systemIndex = 3, anchorInfo = { point = "BOTTOM" }, isInDefaultPosition = true },
+		{ system = 0, systemIndex = 2, anchorInfo = { point = "BOTTOM" }, isInDefaultPosition = true, settings = {
+			{ setting = 3, value = 5 }, { setting = 9, value = 1 },
+		} },
+		{ system = 0, systemIndex = 3, anchorInfo = { point = "BOTTOM" }, isInDefaultPosition = true, settings = {
+			{ setting = 3, value = 5 }, { setting = 9, value = 1 },
+		} },
 		{ system = 13, anchorInfo = { point = "BOTTOM", offsetX = 116.5 }, isInDefaultPosition = true },
 		{ system = 14, anchorInfo = { point = "BOTTOMLEFT", relativeTo = "MicroMenuContainer" }, isInDefaultPosition = true },
 		{ system = 15, systemIndex = 1, anchorInfo = { point = "BOTTOM" }, isInDefaultPosition = true },
@@ -778,6 +782,8 @@ do
 		and capRight.isInDefaultPosition)
 	check("preset gargoyles untouched", saved[2].systems[#saved[2].systems - 2].settings[1].value == 0)
 	check("bar 3 on the micro menu", above(bar3, "MicroMenuContainer"))
+	check("bars 2 and 3 hide empty slots", values(bar2)[9] == 0 and values(bar3)[9] == 0)
+	check("bars 2 and 3 keep their icon size", values(bar2)[3] == 5 and values(bar3)[3] == 5)
 	check("experience bar at the bottom center", xp1.anchorInfo.point == "BOTTOM" and xp1.anchorInfo.relativeTo == "UIParent"
 		and xp1.anchorInfo.offsetX == 0 and xp1.anchorInfo.offsetY == 0 and not xp1.isInDefaultPosition)
 	check("second status bar on the first", xp2.anchorInfo.relativeTo == "MainStatusTrackingBarContainer"
