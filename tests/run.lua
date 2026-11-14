@@ -277,7 +277,7 @@ local function world(state)
 			MainActionBarEndCap = 26 },
 		EditModeCooldownViewerSystemIndices = { Essential = 1, Utility = 2, BuffIcon = 3, BuffBar = 4 },
 		EditModeActionBarSystemIndices = { MainBar = 1, Bar2 = 2, Bar3 = 3, RightBar1 = 4, RightBar2 = 5, StanceBar = 11, PetActionBar = 12 },
-		EditModeActionBarSetting = { Orientation = 0, NumRows = 1, NumIcons = 2, IconSize = 3, AlwaysShowButtons = 9 },
+		EditModeActionBarSetting = { Orientation = 0, NumRows = 1, NumIcons = 2, IconSize = 3, HideBarArt = 6, AlwaysShowButtons = 9 },
 		EditModeMainActionBarEndCapSetting = { Hidden = 0 },
 		EditModeMainActionBarEndCapSystemIndices = { EndCapLeft = 1, EndCapRight = 2 },
 		ActionBarOrientation = { Horizontal = 0, Vertical = 1 },
@@ -637,7 +637,9 @@ local function systems(playerX)
 		{ system = 3, systemIndex = 1, anchorInfo = { point = "TOPLEFT", offsetX = playerX }, isInDefaultPosition = true },
 		{ system = 3, systemIndex = 2, anchorInfo = { point = "TOPLEFT", offsetX = 250 }, isInDefaultPosition = true },
 		{ system = 3, systemIndex = 3, anchorInfo = { point = "CENTER", offsetX = 7 }, isInDefaultPosition = true },
-		{ system = 0, systemIndex = 1, anchorInfo = { point = "BOTTOM", offsetX = 1 }, isInDefaultPosition = false },
+		{ system = 0, systemIndex = 1, anchorInfo = { point = "BOTTOM", offsetX = 1 }, isInDefaultPosition = false, settings = {
+			{ setting = 6, value = 0 }, { setting = 9, value = 1 },
+		} },
 		{ system = 3, systemIndex = 4, anchorInfo = { point = "TOPLEFT", offsetX = 0 }, isInDefaultPosition = true },
 		{ system = 3, systemIndex = 5, anchorInfo = { point = "TOPLEFT", offsetX = 0 }, isInDefaultPosition = true, settings = {
 			{ setting = 9, value = 0 }, { setting = 10, value = 26 }, { setting = 11, value = 8 },
@@ -774,6 +776,7 @@ do
 		and not mainBar.isInDefaultPosition)
 	check("micro menu right of the minimap", micro.anchorInfo.point == "BOTTOMLEFT" and micro.anchorInfo.relativeTo == "MinimapCluster"
 		and micro.anchorInfo.relativePoint == "BOTTOMRIGHT" and micro.anchorInfo.offsetX == 8 and not micro.isInDefaultPosition)
+	check("main bar art hidden, empty slots kept", values(mainBar)[6] == 1 and values(mainBar)[9] == 1)
 	check("bags keep following the micro menu", bags.isInDefaultPosition and bags.anchorInfo.relativeTo == "MicroMenuContainer")
 	check("bar 2 on the main bar", above(bar2, "MainActionBar"))
 	local capLeft, capRight = layout.systems[#layout.systems - 2], layout.systems[#layout.systems - 1]
