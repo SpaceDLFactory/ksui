@@ -8,6 +8,7 @@
 Core.lua
 Skin.lua
 UnitFrames.lua
+Nameplates.lua
 Cooldown.lua
 Layout.lua
 Combat.lua

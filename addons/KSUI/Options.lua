@@ -11,6 +11,8 @@ local OPTIONS = {
 	{ key = "squareMinimap", label = "미니맵 네모로", default = true, refresh = "RefreshMinimap" },
 	{ key = "customUnitFrames", label = "내/대상/주시 프레임 네모로", default = true, refresh = "RefreshUnitFrames" },
 	{ key = "animatedPortraits", label = "움직이는 초상화", default = true, refresh = "RefreshUnitFrames" },
+	-- Blizzard's own look comes back only when it restyles a plate, so turning this off needs a reload.
+	{ key = "flatNameplates", label = "이름표 납작하게 (끌 때는 /reload)", default = true },
 	{ header = "쿨다운" },
 	{ key = "cooldownNumbers", label = "쿨다운 숫자 표시", default = true, refresh = "RefreshCooldowns" },
 	{ key = "cooldownFontSize", label = "숫자 크기", default = 16, min = 10, max = 32, step = 1, refresh = "RefreshCooldowns" },

@@ -25,7 +25,9 @@ local function texture()
 	function t:SetColorTexture(r, g, b) self.fill = { r, g, b } end
 	function t:SetAlpha(a) self.alpha = a end
 	function t:SetAlphaFromBoolean(v, yes, no) self.alphaFrom = { v, yes, no } end
-	function t:SetPoint(...) self.point = { ... } end
+	function t:SetPoint(...) self.point = { ... }; self.points = (self.points or 0) + 1 end
+	function t:ClearAllPoints() self.points = 0 end
+	function t:SetDrawLayer(l) self.layer = l end
 	function t:SetAllPoints() end
 	function t:SetSize() end
 	function t:SetVertexColorFromBoolean(v, yes, no) self.colorFrom = { v, yes, no } end
@@ -240,6 +242,13 @@ local function world(state)
 	function env.AbbreviateNumbers(n) if n == SECRET then return SECRET end; return tostring(n) end
 	env.tostring = tostring
 	env.CurveConstants = { ScaleTo100 = {} }
+	-- state.plates = { unit -> plate }; a forbidden plate is simply missing, as GetNamePlateForUnit returns for addons.
+	state.plates = state.plates or {}
+	env.C_NamePlate = { GetNamePlateForUnit = function(unit, includeForbidden)
+		assert(not includeForbidden)
+		return state.plates[unit]
+	end }
+	env.NamePlateDriverFrame = { OnNamePlateAdded = function() end }
 	env.PowerBarColor = { MANA = { r = 0, g = 0, b = 1 }, RAGE = { r = 1, g = 0, b = 0 } }
 	function env.IsInRaid() return state.raid ~= nil end
 	function env.GetNumGroupMembers() return state.groupSize or 0 end
@@ -1392,6 +1401,42 @@ do
 	local env = boot(state)
 	fire(env, "PLAYER_TARGET_CHANGED")
 	check("far target uses the still portrait", unitFrame(state, "target").picture.shown == true)
+end
+
+-- Nameplates
+local function plate()
+	local bar = { barTexture = texture(), bgTexture = texture() }
+	local unitFrame = { HealthBarsContainer = { healthBar = bar }, PlayerLevelDiffFrame = texture() }
+	-- Blizzard's classic style puts its border art back on every call.
+	function unitFrame:UpdateAnchors()
+		bar.barTexture:SetTexture("Interface\\TargetingFrame\\UI-TargetingFrame-BarFill")
+		bar.bgTexture:SetTexture("Interface\\Tooltips\\Nameplate-Border")
+		self.PlayerLevelDiffFrame:SetAlpha(1)
+	end
+	return { UnitFrame = unitFrame }
+end
+
+do
+	local state = { units = { player = mage }, plates = { nameplate1 = plate() } }
+	local env = boot(state)
+	check("nameplate hook waits for Blizzard_NamePlates", state.addonLoaders.Blizzard_NamePlates ~= nil)
+	state.addonLoaders.Blizzard_NamePlates()
+	env.NamePlateDriverFrame:OnNamePlateAdded("nameplate1")
+	local unitFrame = state.plates.nameplate1.UnitFrame
+	local bar = unitFrame.HealthBarsContainer.healthBar
+	check("nameplate bar flat", bar.barTexture.file == "Interface\\ChatFrame\\ChatFrameBackground")
+	check("nameplate border is a thin black box", bar.bgTexture.file == "Interface\\ChatFrame\\ChatFrameBackground"
+		and bar.bgTexture.color[1] == 0 and bar.bgTexture.points == 2 and bar.bgTexture.point[4] == 1)
+	check("nameplate level box hidden", unitFrame.PlayerLevelDiffFrame.alpha == 0)
+	unitFrame:UpdateAnchors()
+	check("Blizzard restyle is overridden", bar.bgTexture.file == "Interface\\ChatFrame\\ChatFrameBackground"
+		and unitFrame.PlayerLevelDiffFrame.alpha == 0)
+	env.NamePlateDriverFrame:OnNamePlateAdded("nameplate2")
+	check("forbidden plate skipped", true)
+	state.settings.flatNameplates:SetValue(false)
+	unitFrame:UpdateAnchors()
+	check("Blizzard look returns when off", bar.bgTexture.file == "Interface\\Tooltips\\Nameplate-Border"
+		and unitFrame.PlayerLevelDiffFrame.alpha == 1)
 end
 
 print(string.format("%d checks, %d failures", count, failures))
