@@ -30,6 +30,7 @@ local function unitColor(unit)
 	end
 	return UNKNOWN_CLASS[1], UNKNOWN_CLASS[2], UNKNOWN_CLASS[3]
 end
+ns.UnitColor = unitColor
 
 -- Blizzard can recolor these bars itself, so the color is reapplied after every SetStatusBarColor.
 local function classColorBar(bar, unit)
@@ -121,6 +122,7 @@ function ns.RefreshSkin()
 			entry.reset()
 		end
 	end
+	ns.RefreshUnitFrames()
 end
 
 -- Blizzard_Minimap/Camelot/Minimap.lua uses the same mask for both rotation modes. The hybrid minimap used in

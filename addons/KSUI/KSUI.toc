@@ -7,6 +7,7 @@
 
 Core.lua
 Skin.lua
+UnitFrames.lua
 Cooldown.lua
 Layout.lua
 Combat.lua

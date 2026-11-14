@@ -29,6 +29,8 @@ local function texture()
 	function t:SetAllPoints() end
 	function t:SetSize() end
 	function t:SetVertexColorFromBoolean(v, yes, no) self.colorFrom = { v, yes, no } end
+	function t:SetShown(v) self.shown = v end
+	function t:SetTextColor(r, g, b) self.textColor = { r, g, b } end
 	return t
 end
 
@@ -112,8 +114,9 @@ local function world(state)
 		state.frames[#state.frames + 1] = f
 		function f:RegisterEvent(e) self.registered[e] = true end
 		function f:RegisterUnitEvent(e, unit)
-			assert(unit == "target")
 			self.registered[e] = true
+			self.units = self.units or {}
+			self.units[e] = unit
 		end
 		function f:SetScript(name, fn)
 			self.scripts[name] = fn
@@ -126,15 +129,26 @@ local function world(state)
 		function f:SetShown(v) self.shown = v end
 		function f:CreateTexture() return texture() end
 		function f:SetCooldownFromDurationObject(d) self.duration = d end
-		function f:CreateFontString() local t = texture(); function t:SetText(v) self.text = v end; return t end
+		function f:CreateFontString()
+			local t = texture()
+			function t:SetText(v) self.text = v end
+			function t:SetFormattedText(fmt, ...) self.format = { fmt, ... } end
+			return t
+		end
 		function f:Show() self.shown = true end
 		function f:Hide() self.shown = false end
 		function f:SetStatusBarTexture() self.fill = texture() end
 		function f:GetStatusBarTexture() return self.fill end
 		function f:SetMinMaxValues(a, b) self.range = { a, b } end
-		function f:SetValue(v) self.value = v end
+		function f:SetValue(v) self.barValue = v end
 		function f:SetBackdrop(b) self.backdrop = b end
 		function f:SetBackdropBorderColor(r, g, b, a) self.borderColor = { r, g, b, a } end
+		function f:SetBackdropColor(r, g, b, a) self.backdropColor = { r, g, b, a } end
+		function f:SetStatusBarColor(r, g, b) self.color = { r, g, b } end
+		function f:ClearModel() self.modelUnit = nil end
+		function f:SetUnit(u) self.modelUnit = u; self.modelLoads = (self.modelLoads or 0) + 1 end
+		function f:SetPortraitZoom(z) self.zoom = z end
+		function f:SetPosition() end
 		return f
 	end
 	env.CharacterFrame, env.PaperDollFrame = { name = "CharacterFrame" }, { name = "PaperDollFrame" }
@@ -204,7 +218,28 @@ local function world(state)
 	function env.UnitIsPlayer(u) return state.units[u].player end
 	function env.UnitClass(u) return "Localized", state.units[u] and state.units[u].class end
 	function env.UnitAffectingCombat() return state.combat end
-	function env.UnitPowerType() return state.powerType or 0 end
+	function env.UnitPowerType() return state.powerType or 0, state.powerToken or "MANA" end
+	-- state.units[u] may carry health, maxHealth, power, level, name, far, hiddenIdentity; SECRET stands in for any of them.
+	local function field(u, key, default) local v = state.units[u][key]; if v == nil then return default end; return v end
+	function env.UnitHealth(u) return field(u, "health", 80) end
+	function env.UnitHealthMax(u) return field(u, "maxHealth", 100) end
+	function env.UnitHealthPercent(u, predicted, curve)
+		assert(predicted == true and curve == env.CurveConstants.ScaleTo100)
+		local h = field(u, "health", 80)
+		if h == SECRET then return SECRET end
+		return h
+	end
+	function env.UnitPower(u) return field(u, "power", 50) end
+	function env.UnitPowerMax(u) return field(u, "maxPower", 100) end
+	function env.UnitLevel(u) return field(u, "level", 14) end
+	function env.UnitName(u) return field(u, "name", "Name"), state.units[u].surname end
+	function env.UnitIsVisible(u) return not state.units[u].far end
+	env.C_Secrets = { ShouldUnitIdentityBeSecret = function(u) return state.units[u].hiddenIdentity == true end }
+	function env.SetPortraitTexture(t, u, noMask) t.portraitOf = { u, noMask } end
+	function env.AbbreviateNumbers(n) if n == SECRET then return SECRET end; return tostring(n) end
+	env.tostring = tostring
+	env.CurveConstants = { ScaleTo100 = {} }
+	env.PowerBarColor = { MANA = { r = 0, g = 0, b = 1 }, RAGE = { r = 1, g = 0, b = 0 } }
 	function env.IsInRaid() return state.raid ~= nil end
 	function env.GetNumGroupMembers() return state.groupSize or 0 end
 	state.usable = {}
@@ -291,7 +326,8 @@ local function world(state)
 		PowerType = { Mana = 0, Rage = 1 },
 		ViewRaidSize = { Ten = 0, Forty = 2 },
 	}
-	env.Constants = { EditModeConsts = { EditModeMaxLayoutsPerType = 2 } }
+	env.Constants = { EditModeConsts = { EditModeMaxLayoutsPerType = 2 },
+		CharacterNameSeparatorConsts = { CHARACTERNAME_SURNAME_SEPARATOR = " " } }
 	env.EditModePresetLayoutManager = {
 		GetCopyOfPresetLayouts = function() return copy(state.presets) end,
 	}
@@ -301,18 +337,23 @@ local function world(state)
 		SetActiveLayout = function(index) state.activated = index end,
 	}
 	env.STANDARD_TEXT_FONT = "Fonts\\2002.TTF"
-	env.RAID_CLASS_COLORS = setmetatable({ MAGE = { r = 0.2, g = 0.8, b = 0.9 } }, {
+	env.RAID_CLASS_COLORS = setmetatable({ MAGE = { r = 0.2, g = 0.8, b = 0.9 }, PALADIN = { r = 0.96, g = 0.55, b = 0.73 } }, {
 		__index = function(_, key)
 			if key == SECRET then error("secret value used as table key") end
 		end,
 	})
 	mockSettings(env, state)
 
+	local function alphaFrame(f)
+		f = f or {}
+		function f:SetAlpha(a) self.alpha = a end
+		return f
+	end
 	env.PlayerFrame = {
-		PlayerFrameContainer = {
+		PlayerFrameContainer = alphaFrame({
 			FrameTexture = texture(), VehicleFrameTexture = texture(), AlternatePowerFrameTexture = texture(),
-		},
-		PlayerFrameContent = { PlayerFrameContentMain = { HealthBarsContainer = { HealthBar = bar() } } },
+		}),
+		PlayerFrameContent = { PlayerFrameContentMain = alphaFrame({ HealthBarsContainer = { HealthBar = bar() } }) },
 	}
 	local spellbar = { alpha = 1 }
 	function spellbar:ApplyAlpha(a) self:SetAlpha(a) end
@@ -323,14 +364,9 @@ local function world(state)
 	function env.GetTime() return 100 end
 	env.TargetFrame = {
 		spellbar = spellbar,
-		TargetFrameContainer = { FrameTexture = texture() },
-		TargetFrameContent = { TargetFrameContentMain = { HealthBarsContainer = { HealthBar = bar() } } },
+		TargetFrameContainer = alphaFrame({ FrameTexture = texture() }),
+		TargetFrameContent = { TargetFrameContentMain = alphaFrame({ HealthBarsContainer = { HealthBar = bar() } }) },
 	}
-	local function alphaFrame(f)
-		f = f or {}
-		function f:SetAlpha(a) self.alpha = a end
-		return f
-	end
 	env.MainActionBar = alphaFrame({
 		EndCaps = { LeftEndCap = { Texture = texture() }, RightEndCap = { Texture = texture() } },
 	})
@@ -338,7 +374,10 @@ local function world(state)
 	for _, name in ipairs({ "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft", "MultiBar7" }) do
 		env[name] = alphaFrame()
 	end
-	env.FocusFrame = { TargetFrameContainer = { FrameTexture = texture() } }
+	env.FocusFrame = {
+		TargetFrameContainer = alphaFrame({ FrameTexture = texture() }),
+		TargetFrameContent = { TargetFrameContentMain = alphaFrame() },
+	}
 	env.MAX_BOSS_FRAMES = 5
 	for i = 1, env.MAX_BOSS_FRAMES do
 		env["Boss" .. i .. "TargetFrame"] = { TargetFrameContainer = { FrameTexture = texture() } }
@@ -386,9 +425,11 @@ local function tocFiles()
 	return files
 end
 
-local function fire(env, event)
+-- Unit events reach only frames registered for that unit, as RegisterUnitEvent does. Older tests omit the target unit.
+local function fire(env, event, unit)
 	for _, h in ipairs(env.events) do
-		if h.frame.registered[event] then h.fn(h.frame, event) end
+		local wanted = h.frame.units and h.frame.units[event]
+		if h.frame.registered[event] and (not wanted or wanted == (unit or "target")) then h.fn(h.frame, event, unit) end
 	end
 end
 
@@ -1180,11 +1221,11 @@ do
 	check("pushback refreshes the bar", castBar.shown == true)
 	check("glow on an interruptible cast", icon.glow.alpha == 1)
 	check("cast bar shows the cast", castBar.shown == true and castBar.text.text == "Fireball" and castBar.icon.file == 1
-		and castBar.range[1] == 99000 and castBar.range[2] == 102000 and castBar.value == 100000)
+		and castBar.range[1] == 99000 and castBar.range[2] == 102000 and castBar.barValue == 100000)
 	check("interruptible cast colored", castBar.fill.color[1] == 1 and castBar.fill.color[2] == 0.7)
-	castBar.value = nil
+	castBar.barValue = nil
 	castBar.scripts.OnUpdate(castBar)
-	check("bar follows the clock", castBar.value == 100000)
+	check("bar follows the clock", castBar.barValue == 100000)
 	state.cast = { channel = true, notInterruptible = true }
 	fire(env, "UNIT_SPELLCAST_CHANNEL_START")
 	check("no glow on a shielded channel", icon.glow.alpha == 0 and castBar.text.text == "Drain" and castBar.fill.color[1] == 0.6)
@@ -1246,6 +1287,104 @@ do
 	tracking[#tracking + 1] = { spellID = 43308, active = false }
 	fire(env, "LEARNED_SPELL_IN_SKILL_LINE")
 	check("newly learned fishing tracked", tracking[6].active == true)
+end
+
+-- Square unit frames
+local function unitFrame(state, unit)
+	for _, f in ipairs(state.frames) do
+		if f.unit == unit then return f end
+	end
+end
+
+do
+	local state = { units = { player = mage, target = { player = false, level = -1, name = "Boss" } } }
+	local env = boot(state)
+	local player, target = unitFrame(state, "player"), unitFrame(state, "target")
+	check("Blizzard player art faded", env.PlayerFrame.PlayerFrameContainer.alpha == 0
+		and env.PlayerFrame.PlayerFrameContent.PlayerFrameContentMain.alpha == 0)
+	check("Blizzard target and focus art faded", env.TargetFrame.TargetFrameContainer.alpha == 0
+		and env.FocusFrame.TargetFrameContent.TargetFrameContentMain.alpha == 0)
+	check("own frames are children of Blizzard's", player.parent == env.PlayerFrame and target.parent == env.TargetFrame
+		and unitFrame(state, "focus").parent == env.FocusFrame)
+	check("player portrait on the left", player.portrait.point[1] == "TOPLEFT")
+	check("target portrait on the right", target.portrait.point[1] == "TOPRIGHT")
+	check("player health filled", player.health.range[2] == 100 and player.health.barValue == 80)
+	check("health text with percent", player.health.value.format[2] == "80" and player.health.value.format[3] == 80)
+	check("player class colored", player.health.color[1] == 0.2)
+	check("light mage bar gets black text", player.health.name.textColor[1] == 0 and player.health.value.textColor[1] == 0)
+	check("mana colored", player.power.color[3] == 1 and player.power.barValue == 50)
+	check("player name with level", player.health.name.format[2] == 14 and player.health.name.format[3] == "Name")
+	check("player model loaded", player.model.modelUnit == "player" and player.model.zoom == 1 and player.picture.shown == false)
+
+	fire(env, "PLAYER_TARGET_CHANGED")
+	check("boss level shown as ??", target.health.name.format[2] == "??" and target.health.name.format[3] == "Boss")
+
+	state.units.player.surname = "광이"
+	state.units.player.level = 15
+	fire(env, "PLAYER_LEVEL_CHANGED")
+	local name = player.health.name.format
+	check("level-up and surname shown", name[2] == 15 and name[3] == "Name" and name[4] == " " and name[5] == "광이")
+	state.units.player.surname = nil
+	state.units.player.level = nil
+	local loadsBefore = player.model.modelLoads
+	fire(env, "PORTRAITS_UPDATED")
+	check("global portrait refresh reloads the model", player.model.modelLoads == loadsBefore + 1)
+	check("NPC target uses selection color", target.health.color[1] == 0.9)
+	check("dark red bar gets white text", target.health.name.textColor[1] == 1)
+
+	local loads = player.model.modelLoads
+	state.units.player.health = 40
+	fire(env, "UNIT_HEALTH", "player")
+	check("health event updates the bar", player.health.barValue == 40)
+	check("health event leaves the model alone", player.model.modelLoads == loads)
+	fire(env, "UNIT_MODEL_CHANGED", "player")
+	check("model change reloads it", player.model.modelLoads == loads + 1)
+
+	state.settings.healthPercent:SetValue(false)
+	check("percent text off", player.health.value.text == "40")
+	state.settings.classColorBars:SetValue(false)
+	check("plain green without class colors", player.health.color[1] == 0.1 and player.health.color[2] == 0.8)
+	check("green bar gets white text", player.health.name.textColor[1] == 1)
+
+	state.settings.animatedPortraits:SetValue(false)
+	check("still portrait when animation is off", player.model.shown == false and player.picture.shown == true
+		and player.picture.portraitOf[1] == "player" and player.picture.portraitOf[2] == true)
+
+	state.settings.customUnitFrames:SetValue(false)
+	check("Blizzard art back when off", env.PlayerFrame.PlayerFrameContainer.alpha == 1
+		and env.TargetFrame.TargetFrameContent.TargetFrameContentMain.alpha == 1)
+	check("own frames hidden when off", player.shown == false and target.shown == false)
+	state.units.player.health = 10
+	fire(env, "UNIT_HEALTH", "player")
+	check("no updates while off", player.health.barValue == 40)
+end
+
+-- In instances health, power, names and power type can be secret; they must reach only secret-safe setters.
+do
+	local target = { player = false, health = SECRET, maxHealth = SECRET, power = SECRET, maxPower = SECRET,
+		name = SECRET, surname = SECRET, level = SECRET, hiddenIdentity = true }
+	local state = { units = { player = mage, target = target }, powerToken = SECRET }
+	local env = boot(state)
+	env.UnitSelectionColor = function() return SECRET, SECRET, SECRET, 1 end
+	fire(env, "PLAYER_TARGET_CHANGED")
+	local frame = unitFrame(state, "target")
+	check("secret health reaches the bar", frame.health.barValue == SECRET and frame.health.range[2] == SECRET)
+	check("secret health reaches the text", frame.health.value.format[2] == SECRET and frame.health.value.format[3] == SECRET)
+	check("secret power type falls back to mana", frame.power.color[3] == 1)
+	check("secret name and level pass through", frame.health.name.format[2] == SECRET and frame.health.name.format[3] == SECRET
+		and frame.health.name.format[5] == SECRET)
+	check("secret bar color keeps white text", frame.health.name.textColor[1] == 1)
+	check("hidden identity uses the still portrait", frame.model.shown == false and frame.picture.portraitOf[1] == "target")
+end
+
+do
+	local state = { units = { player = mage, target = { player = true, class = "MAGE", far = true } } }
+	local env = boot(state)
+	fire(env, "PLAYER_TARGET_CHANGED")
+	check("far target uses the still portrait", unitFrame(state, "target").picture.shown == true)
+	state.units.target.class = "PALADIN"
+	fire(env, "PLAYER_TARGET_CHANGED")
+	check("pink paladin bar gets black text", unitFrame(state, "target").health.name.textColor[1] == 0)
 end
 
 print(string.format("%d checks, %d failures", count, failures))
