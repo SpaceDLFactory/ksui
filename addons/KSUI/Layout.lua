@@ -9,6 +9,8 @@ local BAR_SPACING = 4
 local TRACKER_EDGE_GAP = 10
 local BARS_BESIDE_MINIMAP = 8
 local VIEWER_SPACING = 6
+-- Edit Mode saves the party frame size in 5% steps from 100%, so 5 steps is 125%.
+local PARTY_SIZE_STEPS = 5
 
 local function setValues(system, values)
 	for _, info in ipairs(system.settings or {}) do
@@ -74,7 +76,9 @@ local function moveFrames(layout)
 			-- tracker's top-left corner so they stay clear of the bars beside it.
 			[units.Boss] = { anchor("BOTTOMRIGHT", "ObjectiveTrackerFrame", "TOPLEFT", -10, 0) },
 			-- Party and raid are the only frames at the top. Blizzard requires a TOPLEFT anchor for them.
-			[units.Party] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", db.groupX, -db.groupTopGap) },
+			[units.Party] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", db.groupX, -db.groupTopGap), function(system)
+				setValues(system, { [Enum.EditModeUnitFrameSetting.FrameSize] = PARTY_SIZE_STEPS })
+			end },
 			[units.Raid] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", db.groupX, -db.groupTopGap), applyFortyPlayerSettings },
 		},
 		-- Buffs and debuffs grow left and down from their top-right corner, above the player frame.

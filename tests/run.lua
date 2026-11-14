@@ -24,8 +24,11 @@ local function texture()
 	function t:SetTexture(v) self.file = v end
 	function t:SetColorTexture(r, g, b) self.fill = { r, g, b } end
 	function t:SetAlpha(a) self.alpha = a end
+	function t:GetAlpha() return self.alpha or 1 end
 	function t:SetAlphaFromBoolean(v, yes, no) self.alphaFrom = { v, yes, no } end
 	function t:SetPoint(...) self.point = { ... }; self.points = (self.points or 0) + 1 end
+	function t:SetJustifyH(j) self.justify = j end
+	function t:SetWordWrap(v) self.wrap = v end
 	function t:ClearAllPoints() self.points = 0 end
 	function t:SetDrawLayer(l) self.layer = l end
 	function t:SetAllPoints() end
@@ -147,6 +150,11 @@ local function world(state)
 		function f:SetBackdrop(b) self.backdrop = b end
 		function f:SetBackdropBorderColor(r, g, b, a) self.borderColor = { r, g, b, a } end
 		function f:SetBackdropColor(r, g, b, a) self.backdropColor = { r, g, b, a } end
+		function f:SetAttribute(k, v) self.attributes = self.attributes or {}; self.attributes[k] = v end
+		function f:RegisterForClicks(...) self.clicks = { ... } end
+		function f:SetWidth(w) self.width = w end
+		function f:ClearAllPoints() self.point = nil end
+		function f:GetParent() return self.parent end
 		function f:SetStatusBarColor(r, g, b) self.color = { r, g, b } end
 		function f:ClearModel() self.modelUnit = nil end
 		function f:SetUnit(u) self.modelUnit = u; self.modelLoads = (self.modelLoads or 0) + 1 end
@@ -331,7 +339,7 @@ local function world(state)
 		EditModeObjectiveTrackerSetting = { Height = 0, Opacity = 1 },
 		EditModeUnitFrameSystemIndices = { Player = 1, Target = 2, Focus = 3, Party = 4, Raid = 5, Boss = 6 },
 		EditModeLayoutType = { Preset = 0, Account = 1, Character = 2 },
-		EditModeUnitFrameSetting = { ViewRaidSize = 9, FrameWidth = 10, FrameHeight = 11, RaidGroupDisplayType = 13, RowSize = 15 },
+		EditModeUnitFrameSetting = { ViewRaidSize = 9, FrameWidth = 10, FrameHeight = 11, RaidGroupDisplayType = 13, RowSize = 15, FrameSize = 16 },
 		RaidGroupDisplayType = { SeparateGroupsVertical = 0, CombineGroupsHorizontal = 3 },
 		PowerType = { Mana = 0, Rage = 1 },
 		ViewRaidSize = { Ten = 0, Forty = 2 },
@@ -392,9 +400,13 @@ local function world(state)
 	for i = 1, env.MAX_BOSS_FRAMES do
 		env["Boss" .. i .. "TargetFrame"] = { TargetFrameContainer = { FrameTexture = texture() } }
 	end
-	local partyMembers = state.noParty and {} or { { Texture = texture() }, { Texture = texture() } }
+	local function partyMember(i)
+		return { unitToken = "party" .. i, GetWidth = function() return 120 end, Texture = texture(), VehicleTexture = texture(), Flash = texture(),
+			Portrait = texture(), Name = texture(), HealthBarContainer = alphaFrame(), ManaBar = alphaFrame() }
+	end
+	local partyMembers = state.noParty and {} or { partyMember(1), partyMember(2) }
 	env.partyMembers = partyMembers
-	env.newPartyTexture = texture
+	env.newPartyMember = partyMember
 	env.PartyFrame = { InitializePartyMemberFrames = function() end, PartyMemberFramePool = {
 		EnumerateActive = function()
 			local i = 0
@@ -636,7 +648,7 @@ end
 do
 	local state = { units = { player = mage }, noParty = true }
 	local env = boot(state)
-	env.partyMembers[1] = { Texture = env.newPartyTexture() }
+	env.partyMembers[1] = env.newPartyMember(1)
 	env.PartyFrame:InitializePartyMemberFrames()
 	check("party joined after login is darkened", env.partyMembers[1].Texture.desaturated)
 	state.settings.darkUnitFrames:SetValue(false)
@@ -691,7 +703,8 @@ local function systems(playerX)
 		{ system = 0, systemIndex = 1, anchorInfo = { point = "BOTTOM", offsetX = 1 }, isInDefaultPosition = false, settings = {
 			{ setting = 6, value = 0 }, { setting = 9, value = 1 },
 		} },
-		{ system = 3, systemIndex = 4, anchorInfo = { point = "TOPLEFT", offsetX = 0 }, isInDefaultPosition = true },
+		{ system = 3, systemIndex = 4, anchorInfo = { point = "TOPLEFT", offsetX = 0 }, isInDefaultPosition = true, settings = {
+			{ setting = 16, value = 0 }, { setting = 4, value = 0 } } },
 		{ system = 3, systemIndex = 5, anchorInfo = { point = "TOPLEFT", offsetX = 0 }, isInDefaultPosition = true, settings = {
 			{ setting = 9, value = 0 }, { setting = 10, value = 26 }, { setting = 11, value = 8 },
 			{ setting = 13, value = 3 }, { setting = 15, value = 7 },
@@ -730,7 +743,8 @@ local function systems(playerX)
 		{ system = 20, systemIndex = 1, anchorInfo = { point = "BOTTOM", offsetY = 310 }, isInDefaultPosition = true },
 		{ system = 20, systemIndex = 2, anchorInfo = { point = "BOTTOM", offsetY = 240 }, isInDefaultPosition = true },
 		{ system = 20, systemIndex = 3, anchorInfo = { point = "BOTTOM", offsetY = 370 }, isInDefaultPosition = true },
-		{ system = 20, systemIndex = 4, anchorInfo = { point = "BOTTOM", offsetX = 420, offsetY = 430 }, isInDefaultPosition = true },		{ system = 26, systemIndex = 1, anchorInfo = { point = "RIGHT", relativeTo = "MainActionBar" }, isInDefaultPosition = true,
+		{ system = 20, systemIndex = 4, anchorInfo = { point = "BOTTOM", offsetX = 420, offsetY = 430 }, isInDefaultPosition = true },
+		{ system = 26, systemIndex = 1, anchorInfo = { point = "RIGHT", relativeTo = "MainActionBar" }, isInDefaultPosition = true,
 			settings = { { setting = 0, value = 0 } } },
 		{ system = 26, systemIndex = 2, anchorInfo = { point = "LEFT", relativeTo = "MainActionBar" }, isInDefaultPosition = true,
 			settings = { { setting = 0, value = 0 } } },
@@ -776,6 +790,9 @@ do
 	check("focus above target", focus.anchorInfo.point == "BOTTOMLEFT" and focus.anchorInfo.offsetX == 130 and focus.anchorInfo.offsetY == 330)
 	check("party in the top-left corner", party.anchorInfo.point == "TOPLEFT" and party.anchorInfo.relativePoint == "TOPLEFT"
 		and party.anchorInfo.offsetX == 20 and party.anchorInfo.offsetY == -20 and not party.isInDefaultPosition)
+	local partyValues = {}
+	for _, info in ipairs(party.settings) do partyValues[info.setting] = info.value end
+	check("party frames at 125%", partyValues[16] == 5 and partyValues[4] == 0)
 	check("raid in the top-left corner", raid.anchorInfo.point == "TOPLEFT" and raid.anchorInfo.relativeTo == "UIParent"
 		and raid.anchorInfo.relativePoint == "TOPLEFT" and raid.anchorInfo.offsetY == -20 and not raid.isInDefaultPosition)
 	local raidValues = {}
@@ -1401,6 +1418,71 @@ do
 	local env = boot(state)
 	fire(env, "PLAYER_TARGET_CHANGED")
 	check("far target uses the still portrait", unitFrame(state, "target").picture.shown == true)
+end
+
+-- Party frames
+local function countUnit(state, unit)
+	local n = 0
+	for _, f in ipairs(state.frames) do
+		if f.unit == unit then n = n + 1 end
+	end
+	return n
+end
+
+do
+	local state = { units = { player = mage, party1 = { player = true, class = "MAGE", name = "Friend" },
+		party2 = { player = true, class = "MAGE" } } }
+	local env = boot(state)
+	local member = env.partyMembers[1]
+	local frame = unitFrame(state, "party1")
+	check("party frame drawn on the member", frame and frame.parent == member and frame.size[1] == 200 and frame.size[2] == 52)
+	check("party frame grows right from Blizzard's", frame.point[1] == "LEFT")
+	check("names stay on one line", frame.health.name.wrap == false)
+	local clicker = frame.clicker
+	check("bars past Blizzard's frame are clickable", clicker and clicker.template == "SecureUnitButtonTemplate"
+		and clicker.parent == member and clicker.width == 80 and clicker.attributes.unit == "party1"
+		and clicker.attributes.type1 == "target" and clicker.attributes.type2 == "togglemenu" and clicker.shown == true)
+	check("long names cut at the bar's end", frame.health.name.points == 2 and frame.health.name.justify == "LEFT"
+		and unitFrame(state, "target").health.name.justify == "RIGHT")
+	check("party portrait on the left", frame.portrait.point[1] == "TOPLEFT" and frame.portrait.size[1] == 50)
+	check("party art faded", member.Texture.alpha == 0 and member.Portrait.alpha == 0 and member.Name.alpha == 0
+		and member.HealthBarContainer.alpha == 0 and member.ManaBar.alpha == 0 and member.Flash.alpha == 0)
+	check("party member filled", frame.health.barValue == 80 and frame.health.name.format[3] == "Friend")
+	member.Portrait:SetAlpha(0.7)
+	check("Blizzard's portrait pulse stays hidden", member.Portrait.alpha == 0)
+	state.units.party1.health = 30
+	fire(env, "UNIT_HEALTH", "party1")
+	check("party health event", frame.health.barValue == 30 and unitFrame(state, "party2").health.barValue == 80)
+
+	member.unitToken = "party3"
+	state.units.party3 = { player = true, class = "MAGE" }
+	env.PartyFrame:InitializePartyMemberFrames()
+	check("rebuilt pool reuses the frame with the new unit", frame.unit == "party3" and frame.events.units.UNIT_HEALTH == "party3"
+		and frame.clicker.attributes.unit == "party3")
+	member.unitToken = "party4"
+	state.units.party4 = { player = true, class = "MAGE" }
+	state.combat = true
+	env.PartyFrame:InitializePartyMemberFrames()
+	check("clicker left alone in combat", frame.clicker.attributes.unit == "party3")
+	state.combat = false
+	fire(env, "PLAYER_REGEN_ENABLED")
+	check("clicker follows after combat", frame.clicker.attributes.unit == "party4")
+	check("no second frame on rebuild", countUnit(state, "party4") == 1 and countUnit(state, "party2") == 1)
+
+	state.settings.customUnitFrames:SetValue(false)
+	member.Portrait:SetAlpha(0.5)
+	check("party art back when off", member.Texture.alpha == 1 and member.Portrait.alpha == 0.5 and frame.shown == false
+		and frame.clicker.shown == false)
+end
+
+do
+	local state = { units = { player = mage, party1 = { player = true, class = "MAGE" } }, noParty = true }
+	local env = boot(state)
+	env.partyMembers[1] = env.newPartyMember(1)
+	env.PartyFrame:InitializePartyMemberFrames()
+	local frame = unitFrame(state, "party1")
+	check("party joined after login gets a frame", frame ~= nil and env.partyMembers[1].Texture.alpha == 0
+		and frame.health.barValue == 80)
 end
 
 -- Nameplates

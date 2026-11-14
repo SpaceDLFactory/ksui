@@ -1,12 +1,15 @@
--- Square player, target and focus frames with a moving portrait, drawn over Blizzard's. Blizzard's secure frames stay
+-- Square player, target, focus and party frames with a moving portrait, drawn over Blizzard's. Blizzard's secure frames stay
 -- underneath with only their art, bars and portrait faded out, so clicks, menus, Edit Mode positions, target auras,
 -- the threat number and the icons beside the frame keep working. Ours are children of theirs, so they show and hide
 -- with the unit. Health, power and names can be secret in instances, so they only go to setters that accept secrets.
 
 local _, ns = ...
 
--- Fits inside Blizzard's 232 x 100 frame, which stays the click area.
+-- Each fits inside Blizzard's frame (232 x 100, party 120 x 53), which stays the click area.
 local WIDTH, HEIGHT = 224, 56
+-- Party frames get the full height so the name and the health number don't overlap, and run past Blizzard's
+-- 120-wide frame to the right so the bars have room.
+local PARTY_WIDTH, PARTY_HEIGHT = 200, 52
 local POWER_HEIGHT = 12
 local GAP = 2
 local FLAT = "Interface\\ChatFrame\\ChatFrameBackground"
@@ -32,11 +35,13 @@ local function statusBar(parent)
 	return bar
 end
 
--- The portrait sits on the outer side: left for you, right for the target and focus.
-local function build(blizzard, unit, portraitRight)
+-- The portrait sits on the outer side: left for you and the party, right for the target and focus.
+-- parts are Blizzard's art, bars and text that ours replaces.
+local function build(blizzard, unit, portraitRight, width, height, parts)
 	local frame = CreateFrame("Frame", nil, blizzard, "BackdropTemplate")
 	frame.unit = unit
-	frame:SetSize(WIDTH, HEIGHT)
+	frame.blizzardParts = parts
+	frame:SetSize(width, height)
 	frame:SetPoint("CENTER")
 	frame:SetBackdrop({ bgFile = FLAT, edgeFile = FLAT, edgeSize = 1 })
 	frame:SetBackdropColor(0, 0, 0, 0.6)
@@ -48,7 +53,7 @@ local function build(blizzard, unit, portraitRight)
 		near, far, inward = "RIGHT", "LEFT", -1
 	end
 
-	local size = HEIGHT - 2
+	local size = height - 2
 	frame.portrait = CreateFrame("Frame", nil, frame)
 	frame.portrait:SetSize(size, size)
 	frame.portrait:SetPoint("TOP" .. near, inward, -1)
@@ -61,7 +66,11 @@ local function build(blizzard, unit, portraitRight)
 	frame.health:SetPoint("TOP" .. near, frame.portrait, "TOP" .. far, GAP * inward, 0)
 	frame.health:SetPoint("BOTTOM" .. far, frame, "BOTTOM" .. far, -inward, POWER_HEIGHT + GAP + 1)
 	frame.health.name = outlinedText(frame.health)
+	-- Anchored at both ends so a long name is cut short instead of running past the bar.
 	frame.health.name:SetPoint("TOP" .. near, 4 * inward, -4)
+	frame.health.name:SetPoint("TOP" .. far, -4 * inward, -4)
+	frame.health.name:SetJustifyH(near)
+	frame.health.name:SetWordWrap(false)
 	frame.health.value:SetPoint("BOTTOM" .. far, -4 * inward, 4)
 
 	frame.power = statusBar(frame)
@@ -159,14 +168,21 @@ local UPDATES = {
 -- Registered by hand: these two are not unit events.
 local GLOBAL_EVENTS = { PLAYER_LEVEL_CHANGED = true, PORTRAITS_UPDATED = true }
 
-local function listen(frame, unitChanged)
-	local events = CreateFrame("Frame")
+-- Registering again replaces the unit, for party frames that Blizzard hands a new one.
+local function setUnit(frame, unit)
+	frame.unit = unit
 	for event in pairs(UPDATES) do
 		if not GLOBAL_EVENTS[event] then
-			events:RegisterUnitEvent(event, frame.unit)
+			frame.events:RegisterUnitEvent(event, unit)
 		end
 	end
-	events:RegisterUnitEvent("UNIT_CONNECTION", frame.unit)
+	frame.events:RegisterUnitEvent("UNIT_CONNECTION", unit)
+end
+
+local function listen(frame, unitChanged)
+	local events = CreateFrame("Frame")
+	frame.events = events
+	setUnit(frame, frame.unit)
 	if unitChanged then
 		events:RegisterEvent(unitChanged)
 	end
@@ -180,28 +196,93 @@ local function listen(frame, unitChanged)
 	return events
 end
 
-local function blizzardParts()
-	return {
-		PlayerFrame.PlayerFrameContainer, PlayerFrame.PlayerFrameContent.PlayerFrameContentMain,
-		TargetFrame.TargetFrameContainer, TargetFrame.TargetFrameContent.TargetFrameContentMain,
-		FocusFrame.TargetFrameContainer, FocusFrame.TargetFrameContent.TargetFrameContentMain,
-	}
+local function targetParts(blizzard)
+	return { blizzard.TargetFrameContainer, blizzard.TargetFrameContent.TargetFrameContentMain }
+end
+
+local partyFrames = {}
+
+-- Blizzard pulses the portrait's alpha on a member in trouble, so it is put back to zero after each change.
+local function keepPortraitHidden(portrait)
+	if ns.db.customUnitFrames and portrait:GetAlpha() ~= 0 then
+		portrait:SetAlpha(0)
+	end
+end
+
+-- Party frames come from a pool that Blizzard fills again whenever it rebuilds them, possibly after login.
+-- The part past Blizzard's frame gets its own secure button, so clicking anywhere on the bars still targets the
+-- member and right-click opens the menu. It hangs off Blizzard's button rather than ours, so ours never becomes a
+-- protected parent. Secure buttons can't be changed in combat, so that waits for it to end.
+local function updateClicker(frame)
+	if InCombatLockdown() then
+		return
+	end
+	if not frame.clicker then
+		local member = frame:GetParent()
+		local clicker = CreateFrame("Button", nil, member, "SecureUnitButtonTemplate")
+		clicker:SetPoint("TOPLEFT", member, "TOPRIGHT")
+		clicker:SetPoint("BOTTOMLEFT", member, "BOTTOMRIGHT")
+		clicker:SetWidth(PARTY_WIDTH - member:GetWidth())
+		clicker:RegisterForClicks("AnyUp")
+		clicker:SetAttribute("type1", "target")
+		clicker:SetAttribute("type2", "togglemenu")
+		frame.clicker = clicker
+	end
+	frame.clicker:SetAttribute("unit", frame.unit)
+	frame.clicker:SetShown(ns.db.customUnitFrames)
+end
+
+local function attachPartyFrames()
+	for member in PartyFrame.PartyMemberFramePool:EnumerateActive() do
+		local frame = partyFrames[member]
+		if not frame then
+			frame = build(member, member.unitToken, false, PARTY_WIDTH, PARTY_HEIGHT, {
+				member.Texture, member.VehicleTexture, member.Flash, member.Portrait, member.Name,
+				member.HealthBarContainer, member.ManaBar,
+			})
+			-- Grows to the right from Blizzard's frame instead of from its middle.
+			frame:ClearAllPoints()
+			frame:SetPoint("LEFT")
+			listen(frame, "GROUP_ROSTER_UPDATE")
+			hooksecurefunc(member.Portrait, "SetAlpha", keepPortraitHidden)
+			partyFrames[member] = frame
+		end
+		setUnit(frame, member.unitToken)
+		updateClicker(frame)
+	end
 end
 
 function ns.InitUnitFrames()
 	-- Your model may not be loaded yet at login.
 	-- UNIT_LEVEL does not cover your own level; Blizzard_UnitFrame/Mainline/PlayerFrame.lua listens to this instead.
-	listen(build(PlayerFrame, "player", false), "PLAYER_ENTERING_WORLD"):RegisterEvent("PLAYER_LEVEL_CHANGED")
-	listen(build(TargetFrame, "target", true), "PLAYER_TARGET_CHANGED")
-	listen(build(FocusFrame, "focus", true), "PLAYER_FOCUS_CHANGED")
+	local player = build(PlayerFrame, "player", false, WIDTH, HEIGHT,
+		{ PlayerFrame.PlayerFrameContainer, PlayerFrame.PlayerFrameContent.PlayerFrameContentMain })
+	listen(player, "PLAYER_ENTERING_WORLD"):RegisterEvent("PLAYER_LEVEL_CHANGED")
+	listen(build(TargetFrame, "target", true, WIDTH, HEIGHT, targetParts(TargetFrame)), "PLAYER_TARGET_CHANGED")
+	listen(build(FocusFrame, "focus", true, WIDTH, HEIGHT, targetParts(FocusFrame)), "PLAYER_FOCUS_CHANGED")
+	hooksecurefunc(PartyFrame, "InitializePartyMemberFrames", function()
+		attachPartyFrames()
+		ns.RefreshUnitFrames()
+	end)
+	attachPartyFrames()
+	local combatEnd = CreateFrame("Frame")
+	combatEnd:RegisterEvent("PLAYER_REGEN_ENABLED")
+	combatEnd:SetScript("OnEvent", function()
+		for _, frame in pairs(partyFrames) do
+			updateClicker(frame)
+		end
+	end)
 end
 
 function ns.RefreshUnitFrames()
 	local custom = ns.db.customUnitFrames
-	for _, part in ipairs(blizzardParts()) do
-		part:SetAlpha(custom and 0 or 1)
+	for _, frame in pairs(partyFrames) do
+		updateClicker(frame)
 	end
 	for _, frame in ipairs(frames) do
+		for _, part in ipairs(frame.blizzardParts) do
+			part:SetAlpha(custom and 0 or 1)
+		end
 		frame:SetShown(custom)
 		if custom then
 			updateAll(frame)
