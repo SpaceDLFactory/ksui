@@ -30,7 +30,8 @@ local function texture()
 	function t:SetSize() end
 	function t:SetVertexColorFromBoolean(v, yes, no) self.colorFrom = { v, yes, no } end
 	function t:SetShown(v) self.shown = v end
-	function t:SetTextColor(r, g, b) self.textColor = { r, g, b } end
+	function t:GetFont() return "Fonts\\font.ttf", 10 end
+	function t:SetFont(path, size, flags) self.font = { path, size, flags } end
 	return t
 end
 
@@ -337,7 +338,7 @@ local function world(state)
 		SetActiveLayout = function(index) state.activated = index end,
 	}
 	env.STANDARD_TEXT_FONT = "Fonts\\2002.TTF"
-	env.RAID_CLASS_COLORS = setmetatable({ MAGE = { r = 0.2, g = 0.8, b = 0.9 }, PALADIN = { r = 0.96, g = 0.55, b = 0.73 } }, {
+	env.RAID_CLASS_COLORS = setmetatable({ MAGE = { r = 0.2, g = 0.8, b = 0.9 } }, {
 		__index = function(_, key)
 			if key == SECRET then error("secret value used as table key") end
 		end,
@@ -1321,7 +1322,8 @@ do
 	check("player health filled", player.health.range[2] == 100 and player.health.barValue == 80)
 	check("health text with percent", player.health.value.format[2] == "80" and player.health.value.format[3] == 80)
 	check("player class colored", player.health.color[1] == 0.2)
-	check("light mage bar gets black text", player.health.name.textColor[1] == 0 and player.health.value.textColor[1] == 0)
+	check("bar text outlined at its own size", player.health.name.font[3] == "OUTLINE" and player.health.name.font[2] == 10
+		and player.health.value.font[3] == "OUTLINE" and player.power.value.font[3] == "OUTLINE")
 	check("mana colored", player.power.color[3] == 1 and player.power.barValue == 50)
 	check("player name with level", player.health.name.format[2] == 14 and player.health.name.format[3] == "Name")
 	check("player model loaded", player.model.modelUnit == "player" and player.model.zoom == 1 and player.picture.shown == false)
@@ -1340,7 +1342,6 @@ do
 	fire(env, "PORTRAITS_UPDATED")
 	check("global portrait refresh reloads the model", player.model.modelLoads == loadsBefore + 1)
 	check("NPC target uses selection color", target.health.color[1] == 0.9)
-	check("dark red bar gets white text", target.health.name.textColor[1] == 1)
 
 	local loads = player.model.modelLoads
 	state.units.player.health = 40
@@ -1354,7 +1355,6 @@ do
 	check("percent text off", player.health.value.text == "40")
 	state.settings.classColorBars:SetValue(false)
 	check("plain green without class colors", player.health.color[1] == 0.1 and player.health.color[2] == 0.8)
-	check("green bar gets white text", player.health.name.textColor[1] == 1)
 
 	state.settings.animatedPortraits:SetValue(false)
 	check("still portrait when animation is off", player.model.shown == false and player.picture.shown == true
@@ -1383,7 +1383,7 @@ do
 	check("secret power type falls back to mana", frame.power.color[3] == 1)
 	check("secret name and level pass through", frame.health.name.format[2] == SECRET and frame.health.name.format[3] == SECRET
 		and frame.health.name.format[5] == SECRET)
-	check("secret bar color keeps white text", frame.health.name.textColor[1] == 1)
+	check("secret bar color passes through", frame.health.color[1] == SECRET)
 	check("hidden identity uses the still portrait", frame.model.shown == false and frame.picture.portraitOf[1] == "target")
 end
 
@@ -1392,9 +1392,6 @@ do
 	local env = boot(state)
 	fire(env, "PLAYER_TARGET_CHANGED")
 	check("far target uses the still portrait", unitFrame(state, "target").picture.shown == true)
-	state.units.target.class = "PALADIN"
-	fire(env, "PLAYER_TARGET_CHANGED")
-	check("pink paladin bar gets black text", unitFrame(state, "target").health.name.textColor[1] == 0)
 end
 
 print(string.format("%d checks, %d failures", count, failures))

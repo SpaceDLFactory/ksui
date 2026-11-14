@@ -11,10 +11,16 @@ local POWER_HEIGHT = 12
 local GAP = 2
 local FLAT = "Interface\\ChatFrame\\ChatFrameBackground"
 local HEALTH_GREEN = { 0.1, 0.8, 0.1 }
--- Perceived brightness above which black text reads better than white.
-local DARK_TEXT_ABOVE = 0.6
 
 local frames = {}
+
+-- White with a black outline reads on any bar color, including a secret one.
+local function outlinedText(bar)
+	local text = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	local font, size = text:GetFont()
+	text:SetFont(font, size, "OUTLINE")
+	return text
+end
 
 local function statusBar(parent)
 	local bar = CreateFrame("StatusBar", nil, parent)
@@ -22,7 +28,7 @@ local function statusBar(parent)
 	bar.background = bar:CreateTexture(nil, "BACKGROUND")
 	bar.background:SetAllPoints()
 	bar.background:SetColorTexture(0, 0, 0, 0.5)
-	bar.value = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	bar.value = outlinedText(bar)
 	return bar
 end
 
@@ -54,7 +60,7 @@ local function build(blizzard, unit, portraitRight)
 	frame.health = statusBar(frame)
 	frame.health:SetPoint("TOP" .. near, frame.portrait, "TOP" .. far, GAP * inward, 0)
 	frame.health:SetPoint("BOTTOM" .. far, frame, "BOTTOM" .. far, -inward, POWER_HEIGHT + GAP + 1)
-	frame.health.name = frame.health:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	frame.health.name = outlinedText(frame.health)
 	frame.health.name:SetPoint("TOP" .. near, 4 * inward, -4)
 	frame.health.value:SetPoint("BOTTOM" .. far, -4 * inward, 4)
 
@@ -91,24 +97,12 @@ local function updatePower(frame)
 	frame.power:SetStatusBarColor(color.r, color.g, color.b)
 end
 
--- Text on the health bar turns black on light bars and white on dark ones. A secret reaction color can't be measured,
--- so white stays.
-local function setTextContrast(frame, r, g, b)
-	local shade = 1
-	if not issecretvalue(r) and 0.299 * r + 0.587 * g + 0.114 * b > DARK_TEXT_ABOVE then
-		shade = 0
-	end
-	frame.health.name:SetTextColor(shade, shade, shade)
-	frame.health.value:SetTextColor(shade, shade, shade)
-end
-
 local function updateColor(frame)
-	local r, g, b = HEALTH_GREEN[1], HEALTH_GREEN[2], HEALTH_GREEN[3]
 	if ns.db.classColorBars then
-		r, g, b = ns.UnitColor(frame.unit)
+		frame.health:SetStatusBarColor(ns.UnitColor(frame.unit))
+	else
+		frame.health:SetStatusBarColor(HEALTH_GREEN[1], HEALTH_GREEN[2], HEALTH_GREEN[3])
 	end
-	frame.health:SetStatusBarColor(r, g, b)
-	setTextContrast(frame, r, g, b)
 end
 
 local function updateName(frame)
