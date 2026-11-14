@@ -186,10 +186,17 @@ local function world(state)
 	local function shownTexture() local t = texture(); function t:SetShown(v) self.shown = v end; return t end
 	env.Minimap = { SetMaskTexture = function(self, m) self.mask = m end }
 	env.MinimapCompassTexture, env.MinimapCompassTextureUnderlay = shownTexture(), shownTexture()
-	env.MinimapCluster = { UpdateMinimapConfig = function()
+	local diel = { ClearAllPoints = function(self) self.point = nil end, SetPoint = function(self, ...) self.point = { ... } end }
+	env.GameTimeFrame = {}
+	env.MinimapCluster = { DielFrame = diel, MinimapContainer = { GetScale = function() return 2 end } }
+	function env.MinimapCluster:UpdateMinimapConfig()
 		env.Minimap:SetMaskTexture("ui-hud-minimap-frame-generic-mask")
 		env.MinimapCompassTexture:SetShown(true)
-	end }
+	end
+	function env.MinimapCluster:SetEditModeScale()
+		diel:ClearAllPoints()
+		diel:SetPoint("CENTER", 110, 172)
+	end
 	function env.GetCVarBool(name) assert(name == "rotateMinimap"); return state.rotate end
 	function env.issecretvalue(v) return v == SECRET end
 	function env.canaccesstable(t) assert(t ~= SECRET, "secret passed to canaccesstable"); return not t.locked end
@@ -523,6 +530,11 @@ do
 		and env.MinimapCompassTextureUnderlay.shown == false)
 	check("minimap border shown", border.shown == true and border.template == "BackdropTemplate" and border.borderColor[1] == 0)
 	check("minimap shape reported", env.GetMinimapShape() == "SQUARE")
+	local diel = env.MinimapCluster.DielFrame
+	local function dielBesideClock() return diel.point[1] == "LEFT" and diel.point[2] == env.GameTimeFrame and diel.point[3] == "RIGHT" end
+	check("day icon beside the clock", dielBesideClock())
+	env.MinimapCluster:SetEditModeScale(2)
+	check("day icon stays after resize", dielBesideClock())
 
 	env.MinimapCluster:UpdateMinimapConfig()
 	check("square kept after rotation toggle", env.Minimap.mask == square and env.MinimapCompassTexture.shown == false)
@@ -536,6 +548,7 @@ do
 		and env.MinimapCompassTexture.shown == true and env.MinimapCompassTextureUnderlay.shown == true and border.shown == false)
 	check("hybrid round restored", env.HybridMinimap.CircleMask.file == "Interface\\CharacterFrame\\TempPortraitAlphaMask")
 	check("round shape reported", env.GetMinimapShape() == "ROUND")
+	check("day icon back on the ring", diel.point[1] == "CENTER" and diel.point[2] == 110 and diel.point[3] == 172)
 end
 
 -- Cooldowns

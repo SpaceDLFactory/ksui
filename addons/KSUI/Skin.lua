@@ -130,8 +130,25 @@ local HYBRID_ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 -- A plain white texture that Blizzard's chat frames use, so it is known to exist in Forever.
 local SQUARE_MASK = "Interface\\ChatFrame\\ChatFrameBackground"
 local MINIMAP_BORDER = 2
+-- Blizzard_Minimap/Camelot/Diel.lua puts the day and night icon here on the round frame, scaled with the minimap.
+local DIEL_ROUND_X, DIEL_ROUND_Y = 55, 86
 
 local minimapBorder
+
+-- On a square map the day and night icon would cover a corner, so it joins the zone text row instead.
+local function placeDielIcon()
+	local diel = MinimapCluster.DielFrame
+	if not diel then
+		return
+	end
+	diel:ClearAllPoints()
+	if ns.db.squareMinimap then
+		diel:SetPoint("LEFT", GameTimeFrame, "RIGHT", 2, 0)
+	else
+		local scale = MinimapCluster.MinimapContainer:GetScale()
+		diel:SetPoint("CENTER", DIEL_ROUND_X * scale, DIEL_ROUND_Y * scale)
+	end
+end
 
 function ns.RefreshMinimap()
 	local square = ns.db.squareMinimap
@@ -140,6 +157,7 @@ function ns.RefreshMinimap()
 	-- Blizzard shows the underlay only while the minimap rotates.
 	MinimapCompassTextureUnderlay:SetShown(not square and GetCVarBool("rotateMinimap"))
 	minimapBorder:SetShown(square)
+	placeDielIcon()
 	if HybridMinimap then
 		HybridMinimap.CircleMask:SetTexture(square and SQUARE_MASK or HYBRID_ROUND_MASK,
 			"CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
@@ -156,6 +174,12 @@ function ns.InitMinimap()
 	hooksecurefunc(MinimapCluster, "UpdateMinimapConfig", function()
 		if ns.db.squareMinimap then
 			ns.RefreshMinimap()
+		end
+	end)
+	-- Changing the minimap size in Edit Mode puts the icon back on the round frame.
+	hooksecurefunc(MinimapCluster, "SetEditModeScale", function()
+		if ns.db.squareMinimap then
+			placeDielIcon()
 		end
 	end)
 	EventUtil.ContinueOnAddOnLoaded("Blizzard_HybridMinimap", ns.RefreshMinimap)
