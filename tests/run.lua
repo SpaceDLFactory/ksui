@@ -750,7 +750,9 @@ do
 	check("right bars become one horizontal row of 12", v1[0] == 0 and v1[1] == 1 and v1[2] == 12 and v2[0] == 0 and v2[1] == 1)
 	check("right bar icon size untouched", v1[3] == 5)
 	check("moved right bar hides empty slots", v1[9] == 0)
-	check("stance bar above the new row", above(stance, "MultiBarRight"))
+	check("stance bar on the right end of the new row", stance.anchorInfo.point == "BOTTOMRIGHT"
+		and stance.anchorInfo.relativeTo == "MultiBarRight" and stance.anchorInfo.relativePoint == "TOPRIGHT"
+		and stance.anchorInfo.offsetX == 0 and stance.anchorInfo.offsetY == 4 and not stance.isInDefaultPosition)
 	check("pet bar above the new row", above(pet, "MultiBarLeft"))
 	local durability = layout.systems[#layout.systems]
 	check("durability figure on the right end of the bar row", durability.system == 16

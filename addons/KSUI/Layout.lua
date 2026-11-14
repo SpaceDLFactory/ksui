@@ -112,7 +112,8 @@ local function moveFrames(layout)
 			[bars.Bar3] = { above("MicroMenuContainer"), hideEmptySlots },
 			[bars.RightBar1] = { above("MultiBarBottomLeft"), horizontalBar },
 			[bars.RightBar2] = { above("MultiBarBottomRight"), horizontalBar },
-			[bars.StanceBar] = { above("MultiBarRight") },
+			-- Right-aligned so it grows towards the middle, clear of the chat's edit box on the left.
+			[bars.StanceBar] = { anchor("BOTTOMRIGHT", "MultiBarRight", "TOPRIGHT", 0, BAR_SPACING) },
 			[bars.PetActionBar] = { above("MultiBarLeft") },
 		},
 		-- Forever's gargoyles are their own systems. Split around the minimap they end up at the far left of the main
