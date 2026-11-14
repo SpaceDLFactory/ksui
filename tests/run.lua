@@ -1080,6 +1080,18 @@ do
 	check("caster picks the intellect helm", bySlot[1] == "[cloth helm]")
 end
 
+-- Heavier armor wins a tie for every role, not only tanks.
+do
+	local state = gearState({ spec = { role = "DAMAGER", primary = 1 } })
+	local A, S = "RESISTANCE0_NAME", "ITEM_MOD_STRENGTH_SHORT"
+	state.items["[leather helm]"] = { id = 12, loc = "INVTYPE_HEAD", stats = { [S] = 5, [A] = 100 } }
+	state.items["[plate helm]"] = { id = 13, loc = "INVTYPE_HEAD", stats = { [S] = 5, [A] = 300 } }
+	state.worn = { [1] = "[leather helm]" }
+	state.bags = { [0] = { "[plate helm]" } }
+	local _, ns = boot(state)
+	check("melee counts armor", suggested(ns.GearSuggestions())[1] == "[plate helm]")
+end
+
 do
 	local state = gearState({ worn = { [11] = "[worn ring]" } })
 	state.bags = { [0] = { "[worn ring copy]", "[small ring]" } }
