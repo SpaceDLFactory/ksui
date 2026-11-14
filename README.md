@@ -54,7 +54,7 @@ WoW Forever(게임 1.60.1, 인터페이스 16001)에서 쓰는 오픈소스 UI �
 ## 설치 (윈도우)
 
 1. `World of Warcraft\_forever_\Interface\AddOns`에 예전 `KSUI`나 `KSCooldownText` 폴더가 있으면 지웁니다.
-2. `kumsung-ui-0.9.1.zip`을 그 폴더에 풉니다. `AddOns\KSUI\KSUI.toc`가 보이면 제대로 된 것입니다.
+2. `kumsung-ui-0.9.2.zip`을 그 폴더에 풉니다. `AddOns\KSUI\KSUI.toc`가 보이면 제대로 된 것입니다.
 3. 게임을 껐다 켭니다.
 
 애드온 폴더 이름과 명령어는 `KSUI`(Kumsung UI의 줄임말)를 씁니다. 설정은 `KSUIDB`에 저장됩니다.
