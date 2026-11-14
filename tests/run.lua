@@ -778,7 +778,7 @@ do
 		and not mainBar.isInDefaultPosition)
 	check("micro menu right of the minimap", micro.anchorInfo.point == "BOTTOMLEFT" and micro.anchorInfo.relativeTo == "MinimapCluster"
 		and micro.anchorInfo.relativePoint == "BOTTOMRIGHT" and micro.anchorInfo.offsetX == 8 and not micro.isInDefaultPosition)
-	check("main bar art hidden, empty slots kept", values(mainBar)[6] == 1 and values(mainBar)[9] == 1)
+	check("main bar art and empty slots hidden", values(mainBar)[6] == 1 and values(mainBar)[9] == 0)
 	check("bags keep following the micro menu", bags.isInDefaultPosition and bags.anchorInfo.relativeTo == "MicroMenuContainer")
 	check("bar 2 on the main bar", above(bar2, "MainActionBar"))
 	local capLeft, capRight = layout.systems[#layout.systems - 2], layout.systems[#layout.systems - 1]
