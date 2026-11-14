@@ -1289,6 +1289,16 @@ do
 	check("newly learned fishing tracked", tracking[6].active == true)
 end
 
+-- Chat timestamps
+do
+	local state = { units = { player = mage } }
+	boot(state)
+	check("chat timestamps on by default", state.cvars.showTimestamps == "|cff8c8c8c[%H:%M]|r "
+		and os.date(state.cvars.showTimestamps, 0):match("^|cff8c8c8c%[%d%d:%d%d%]|r $") ~= nil)
+	state.settings.chatTimestamps:SetValue(false)
+	check("chat timestamps off", state.cvars.showTimestamps == "none")
+end
+
 -- Square unit frames
 local function unitFrame(state, unit)
 	for _, f in ipairs(state.frames) do

@@ -192,6 +192,10 @@ function ns.InitMinimap()
 	ns.RefreshMinimap()
 end
 
+-- Blizzard's chat runs this through date() and puts the result in front of the line, so a gray color code survives.
+-- A chat line has one font size, so the stamp can't be made smaller.
+local CHAT_TIMESTAMP = "|cff8c8c8c[%H:%M]|r "
+
 -- Raid frames and the target threat number stay Blizzard's, which keep working with secret values in instances.
 function ns.RefreshCVars()
 	-- A change made during combat is applied on PLAYER_REGEN_ENABLED.
@@ -202,6 +206,7 @@ function ns.RefreshCVars()
 		-- Blizzard's own bar text, so it keeps working when health is secret in instances.
 		SetCVar("cooldownViewerEnabled", ns.db.cooldownManager and "1" or "0")
 		SetCVar("statusTextDisplay", ns.db.healthPercent and "BOTH" or "NUMERIC")
+		SetCVar("showTimestamps", ns.db.chatTimestamps and CHAT_TIMESTAMP or "none")
 		if ns.db.healthPercent then
 			SetCVar("statusText", "1")
 		end

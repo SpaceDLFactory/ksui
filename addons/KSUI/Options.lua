@@ -30,6 +30,7 @@ local OPTIONS = {
 	{ key = "buffCheck", label = "준비 확인 때 빠진 버프 알림", default = true },
 	{ key = "gearSuggest", label = "더 좋은 장비가 생기면 알림", default = true },
 	{ key = "gatherTracking", label = "전문 기술 채집 추적 자동 켜기", default = true, refresh = "RefreshTracking" },
+	{ key = "chatTimestamps", label = "채팅에 시간 표시", default = true, refresh = "RefreshCVars" },
 	{ header = "프레임 위치" },
 	{ key = "frameX", label = "내/대상 프레임 중앙 거리", default = 130, min = 0, max = 500, step = 5 },
 	{ key = "frameY", label = "내/대상 프레임 높이", default = 220, min = 60, max = 600, step = 5 },
