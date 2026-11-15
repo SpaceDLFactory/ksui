@@ -1,0 +1,39 @@
+name: Release
+
+# Pushing a tag such as v0.10.0 runs the tests, then packages the addon and attaches the zip to a GitHub release.
+# It also uploads to CurseForge once the TOC has an X-Curse-Project-ID and the CF_API_KEY secret is set.
+# Running it by hand (workflow_dispatch) is a dry run: it only builds the zip and keeps it as a run artifact.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Run tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y luajit
+          luajit tests/run.lua
+
+      - uses: BigWigsMods/packager@v2.6.1
+        with:
+          args: ${{ github.event_name == 'workflow_dispatch' && '-d' || '' }}
+
+      - if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: package
+          path: .release/*.zip

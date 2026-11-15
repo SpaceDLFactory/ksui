@@ -1,0 +1,11 @@
+package-as: KSUI
+
+# The addon lives in addons/KSUI; lift it to the top of the zip so it unpacks as AddOns\KSUI.
+move-folders:
+  KSUI/addons/KSUI: KSUI
+
+ignore:
+  - tests
+  - tools
+  - docs
+  - README.md
