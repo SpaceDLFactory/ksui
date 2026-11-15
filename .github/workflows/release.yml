@@ -37,3 +37,5 @@ jobs:
         with:
           name: package
           path: .release/*.zip
+          # The packager writes into .release, which upload-artifact skips as hidden by default.
+          include-hidden-files: true
