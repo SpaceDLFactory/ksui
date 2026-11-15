@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320">
+<defs>
+  <linearGradient id="blade" x1="0" x2="1"><stop offset="0" stop-color="#f4f6fa"/><stop offset="0.5" stop-color="#b9c0cc"/><stop offset="1" stop-color="#7b8494"/></linearGradient>
+  <linearGradient id="gold" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#f3d27a"/><stop offset="1" stop-color="#a8761f"/></linearGradient>
+  <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#22222a"/><stop offset="1" stop-color="#121216"/></linearGradient>
+  <g id="sword">
+    <path d="M0,-110 L9,-92 L9,52 L-9,52 L-9,-92 Z" fill="url(#blade)" stroke="#0b0b0e" stroke-width="6"/>
+    <line x1="0" y1="-96" x2="0" y2="50" stroke="#6d7585" stroke-width="2"/>
+    <rect x="-38" y="52" width="76" height="11" rx="2" fill="url(#gold)" stroke="#0b0b0e" stroke-width="6"/>
+    <rect x="-6" y="63" width="12" height="36" fill="#3a2a22" stroke="#0b0b0e" stroke-width="6"/>
+    <circle cx="0" cy="104" r="9" fill="url(#gold)" stroke="#0b0b0e" stroke-width="6"/>
+  </g>
+</defs>
+<circle cx="160" cy="160" r="150" fill="url(#bg)" stroke="#000" stroke-width="10"/>
+<circle cx="160" cy="160" r="138" fill="none" stroke="url(#gold)" stroke-width="8"/>
+<use href="#sword" transform="translate(160,160) rotate(-38) scale(1.12)"/>
+<use href="#sword" transform="translate(160,160) rotate(38) scale(1.12)"/>
+</svg>

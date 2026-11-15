@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/logo.png" alt="검성UI 로고" width="160"></p>
+
 # 검성UI (Kumsung UI)
 
 ![검성UI 게임 화면](docs/screenshot.jpg)
@@ -78,3 +80,5 @@ luajit tests/run.lua
 ## 라이선스
 
 GNU GPL v3 이상(GPL-3.0-or-later)입니다. 전문은 [LICENSE](LICENSE)에 있습니다.
+
+로고의 영문 글자는 [Cinzel](https://github.com/NDISCOVER/Cinzel) 글꼴(SIL Open Font License 1.1)을 윤곽선으로 바꾼 것입니다.
