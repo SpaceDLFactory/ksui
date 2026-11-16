@@ -24,6 +24,8 @@ local EVENTS = {
 	"DAMAGE_METER_COMBAT_SESSION_UPDATED", "DAMAGE_METER_CURRENT_SESSION_UPDATED", "DAMAGE_METER_RESET",
 	-- A session that was locked during combat can be read again afterwards.
 	"PLAYER_REGEN_ENABLED",
+	-- A new fight brings the meter back from a past one.
+	"PLAYER_REGEN_DISABLED",
 }
 
 local mode = 1
@@ -156,6 +158,17 @@ function ns.RefreshMeter()
 	if not meter:IsShown() then
 		return
 	end
+	-- A past fight Blizzard has dropped (a reset, a new dungeon) would leave an empty meter; back to the current one.
+	if selected.id then
+		local kept = false
+		for _, past in ipairs(C_DamageMeter.GetAvailableCombatSessions()) do
+			kept = kept or past.sessionID == selected.id
+		end
+		if not kept then
+			selected = CURRENT
+			detailSource = nil
+		end
+	end
 	meter.title:SetFormattedText("%s (%s)", MODES[mode].label, selected.label)
 	local data = readSession()
 	-- In combat the whole session may come back locked; the last picture stays until it can be read.
@@ -270,6 +283,9 @@ function ns.InitMeter()
 		if event == "DAMAGE_METER_COMBAT_SESSION_UPDATED" and not issecretvalue(sessionID) and sessionID
 			and not startedAt[sessionID] then
 			startedAt[sessionID] = date("%H:%M")
+		elseif event == "PLAYER_REGEN_DISABLED" and selected.id then
+			selected = CURRENT
+			detailSource = nil
 		end
 		ns.RefreshMeter()
 	end)

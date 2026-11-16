@@ -1793,6 +1793,16 @@ do
 	radios[2].choose(radios[2].data)
 	check("past fight read by id", state.meter.asked[1] == "id" and state.meter.asked[2] == 7
 		and meter.title.format[3] == "11-15 20:09:00 나이트래쉬 [1:15]")
+	fire(env, "PLAYER_REGEN_DISABLED")
+	check("a new fight brings the meter back to the current one", meter.title.format[3] == "현재")
+	radios[2].choose(radios[2].data)
+	local kept = state.meter.past
+	state.meter.past = {}
+	fire(env, "DAMAGE_METER_CURRENT_SESSION_UPDATED")
+	check("a dropped past fight falls back to the current one", meter.title.format[3] == "현재")
+	state.meter.past = kept
+	button.scripts.OnClick(button, "RightButton")
+	state.menu.radios[2].choose(state.menu.radios[2].data)
 	button.scripts.OnClick(button, "RightButton")
 	state.menu.radios[4].choose(state.menu.radios[4].data)
 	check("right-click menu switches to all fights", state.meter.asked[1] == 0 and meter.title.format[3] == "전체")
