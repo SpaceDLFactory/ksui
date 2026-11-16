@@ -32,8 +32,31 @@ events:RegisterEvent("READY_CHECK")
 events:RegisterEvent("BAG_UPDATE_DELAYED")
 events:RegisterEvent("LEARNED_SPELL_IN_SKILL_LINE")
 events:RegisterUnitEvent("UNIT_FACTION", "target")
-events:SetScript("OnEvent", function(_, event)
-	if event == "PLAYER_LOGIN" then
+-- Blizzard's "interface action failed because of an AddOn" message names neither the addon nor the call; these do.
+events:RegisterEvent("ADDON_ACTION_BLOCKED")
+events:RegisterEvent("ADDON_ACTION_FORBIDDEN")
+local MAX_BLOCKED_LOG = 20
+
+-- Kept in saved variables too, so a blocked call can be read after logging out.
+local function noteBlocked(event, addon, call)
+	if addon ~= addonName then
+		return
+	end
+	local entry = date("%m-%d %H:%M:%S") .. " " .. event .. " " .. tostring(call)
+		.. (InCombatLockdown() and " (전투 중)" or "")
+	print("검성UI: 막힌 동작 - " .. entry)
+	local log = ns.db.blockedLog or {}
+	table.insert(log, entry)
+	while #log > MAX_BLOCKED_LOG do
+		table.remove(log, 1)
+	end
+	ns.db.blockedLog = log
+end
+
+events:SetScript("OnEvent", function(_, event, ...)
+	if event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
+		noteBlocked(event, ...)
+	elseif event == "PLAYER_LOGIN" then
 		ns.InitSkin()
 		ns.InitUnitFrames()
 		ns.InitNameplates()

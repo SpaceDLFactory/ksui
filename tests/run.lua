@@ -249,6 +249,7 @@ local function world(state)
 	function env.SetPortraitTexture(t, u, noMask) t.portraitOf = { u, noMask } end
 	function env.AbbreviateNumbers(n) if n == SECRET then return SECRET end; return tostring(n) end
 	env.tostring = tostring
+	function env.date() return "11-15 20:09:00" end
 	env.CurveConstants = { ScaleTo100 = {} }
 	-- A curve records its points; UnitPowerPercent evaluates a step curve the way the client would.
 	env.C_CurveUtil = { CreateCurve = function()
@@ -469,10 +470,10 @@ local function tocFiles()
 end
 
 -- Unit events reach only frames registered for that unit, as RegisterUnitEvent does. Older tests omit the target unit.
-local function fire(env, event, unit)
+local function fire(env, event, unit, ...)
 	for _, h in ipairs(env.events) do
 		local wanted = h.frame.units and h.frame.units[event]
-		if h.frame.registered[event] and (not wanted or wanted == (unit or "target")) then h.fn(h.frame, event, unit) end
+		if h.frame.registered[event] and (not wanted or wanted == (unit or "target")) then h.fn(h.frame, event, unit, ...) end
 	end
 end
 
@@ -1353,6 +1354,21 @@ do
 	tracking[#tracking + 1] = { spellID = 43308, active = false }
 	fire(env, "LEARNED_SPELL_IN_SKILL_LINE")
 	check("newly learned fishing tracked", tracking[6].active == true)
+end
+
+-- Blocked actions
+do
+	local state = { units = { player = mage } }
+	local env = boot(state)
+	fire(env, "ADDON_ACTION_BLOCKED", "OtherAddon", "Foo()")
+	check("other addons' blocks ignored", env.KSUIDB.blockedLog == nil)
+	state.combat = true
+	fire(env, "ADDON_ACTION_FORBIDDEN", "KSUI", "TargetUnit()")
+	check("own block printed and kept", env.KSUIDB.blockedLog[1] == "11-15 20:09:00 ADDON_ACTION_FORBIDDEN TargetUnit() (전투 중)"
+		and state.printed:find("TargetUnit", 1, true) ~= nil)
+	state.combat = false
+	for i = 1, 25 do fire(env, "ADDON_ACTION_BLOCKED", "KSUI", "Call" .. i) end
+	check("log keeps the last 20", #env.KSUIDB.blockedLog == 20 and env.KSUIDB.blockedLog[20]:find("Call25", 1, true) ~= nil)
 end
 
 -- Chat timestamps
