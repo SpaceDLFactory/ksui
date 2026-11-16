@@ -250,6 +250,22 @@ local function world(state)
 	function env.AbbreviateNumbers(n) if n == SECRET then return SECRET end; return tostring(n) end
 	env.tostring = tostring
 	env.CurveConstants = { ScaleTo100 = {} }
+	-- A curve records its points; UnitPowerPercent evaluates a step curve the way the client would.
+	env.C_CurveUtil = { CreateCurve = function()
+		local c = { points = {} }
+		function c:SetType(t) self.type = t end
+		function c:AddPoint(x, y) self.points[#self.points + 1] = { x, y } end
+		return c
+	end }
+	function env.UnitPowerPercent(u, powerType, unmodified, curve)
+		assert(powerType == nil and unmodified == false and curve.type == 1)
+		local power, max = field(u, "power", 50), field(u, "maxPower", 100)
+		if power == SECRET or max == SECRET then return SECRET end
+		local share = max > 0 and power / max or 0
+		local value = curve.points[1][2]
+		for _, p in ipairs(curve.points) do if share >= p[1] then value = p[2] end end
+		return value
+	end
 	-- state.plates = { unit -> plate }; a forbidden plate is simply missing, as GetNamePlateForUnit returns for addons.
 	state.plates = state.plates or {}
 	env.C_NamePlate = { GetNamePlateForUnit = function(unit, includeForbidden)
@@ -325,6 +341,7 @@ local function world(state)
 	function env.ReloadUI() state.reloaded = true end
 	env.SlashCmdList = {}
 	env.Enum = {
+		LuaCurveType = { Linear = 0, Step = 1 },
 		EditModeSystem = { ActionBar = 0, CastBar = 1, Minimap = 2, UnitFrame = 3, AuraFrame = 6, ChatFrame = 8, HudTooltip = 11,
 			ObjectiveTracker = 12, MicroMenu = 13, Bags = 14, StatusTrackingBar = 15, DurabilityFrame = 16, CooldownViewer = 20,
 			MainActionBarEndCap = 26 },
@@ -1368,6 +1385,17 @@ do
 	fire(env, "PORTRAITS_UPDATED")
 	check("global portrait refresh reloads the model", player.model.modelLoads == loadsBefore + 1)
 	check("NPC target uses selection color", target.health.color[1] == 0.9)
+	check("power number shown when there is power", target.power.value.alpha == 1)
+	state.units.target.maxPower = 0
+	state.units.target.power = 0
+	fire(env, "UNIT_MAXPOWER")
+	check("power number hidden without power", target.power.value.alpha == 0)
+	state.units.target.maxPower = 100
+	fire(env, "UNIT_POWER_UPDATE")
+	check("empty rage hides its number too", target.power.value.alpha == 0)
+	state.units.target.power = 30
+	fire(env, "UNIT_POWER_UPDATE")
+	check("number back once rage builds", target.power.value.alpha == 1)
 
 	local loads = player.model.modelLoads
 	state.units.player.health = 40
@@ -1407,6 +1435,7 @@ do
 	check("secret health reaches the bar", frame.health.barValue == SECRET and frame.health.range[2] == SECRET)
 	check("secret health reaches the text", frame.health.value.format[2] == SECRET and frame.health.value.format[3] == SECRET)
 	check("secret power type falls back to mana", frame.power.color[3] == 1)
+	check("secret power decides the number's alpha itself", frame.power.value.alpha == SECRET)
 	check("secret name and level pass through", frame.health.name.format[2] == SECRET and frame.health.name.format[3] == SECRET
 		and frame.health.name.format[5] == SECRET)
 	check("secret bar color passes through", frame.health.color[1] == SECRET)

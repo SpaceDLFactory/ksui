@@ -14,6 +14,12 @@ local POWER_HEIGHT = 12
 local GAP = 2
 local FLAT = "Interface\\ChatFrame\\ChatFrameBackground"
 local HEALTH_GREEN = { 0.1, 0.8, 0.1 }
+-- Turns a power share into the power number's alpha: hidden at nothing, shown at anything more. Going through a curve
+-- works when the power is secret, which it is for many units outside your group.
+local POWER_TEXT_ALPHA = C_CurveUtil.CreateCurve()
+POWER_TEXT_ALPHA:SetType(Enum.LuaCurveType.Step)
+POWER_TEXT_ALPHA:AddPoint(0, 0)
+POWER_TEXT_ALPHA:AddPoint(0.001, 1)
 
 local frames = {}
 
@@ -97,10 +103,12 @@ end
 
 local function updatePower(frame)
 	local unit = frame.unit
-	local power = UnitPower(unit)
-	frame.power:SetMinMaxValues(0, UnitPowerMax(unit))
+	local power, maxPower = UnitPower(unit), UnitPowerMax(unit)
+	frame.power:SetMinMaxValues(0, maxPower)
 	frame.power:SetValue(power)
 	frame.power.value:SetText(AbbreviateNumbers(power))
+	-- An empty bar needs no "0": beasts with no power at all, and rage or energy that has not built up yet.
+	frame.power.value:SetAlpha(UnitPowerPercent(unit, nil, false, POWER_TEXT_ALPHA))
 	local _, token = UnitPowerType(unit)
 	local color = not issecretvalue(token) and token and PowerBarColor[token] or PowerBarColor.MANA
 	frame.power:SetStatusBarColor(color.r, color.g, color.b)
