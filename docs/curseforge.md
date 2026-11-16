@@ -1,17 +1,46 @@
 <!--
 CurseForge project page text. Paste the summary and the description (in the editor's Markdown mode) by hand.
-Keep this in step with the features in the uploaded version.
+Keep this in step with the features in the uploaded version. CurseForge moderation requires the English part first.
 -->
 
 # Summary
 
-WoW Forever용 어두운 네모 UI. 하단 배치, 네모 유닛 프레임, 딜·위협 미터, 레이드에서도 안전하게. / A dark, square, bottom-anchored UI for WoW Forever.
+A dark, square, bottom-anchored UI for WoW Forever. / WoW Forever용 어두운 네모 UI. 하단 배치, 네모 유닛 프레임, 딜·위협 미터, 레이드에서도 안전하게.
 
 # Categories
 
 Unit Frames, Action Bars, Map & Minimap, Combat, Damage Dealer
 
 # Description
+
+# Kumsung UI (English)
+
+An open-source UI for WoW Forever (interface 16001). It redraws the default UI in a dark, square style and gathers what you look at most along the bottom of the screen.
+It is built on Blizzard's own frames, so it keeps working under instance and raid combat restrictions (secret values).
+
+## Features
+
+- **Square unit frames** for player, target, focus and party, with animated 3D portraits and class-colored health. Clicks, menus and auras stay Blizzard's.
+- **Bottom layout**: experience bar, minimap, cast bar and cooldown manager stacked in the middle, action bars on both sides of the minimap. Applied with `/ksui layout`.
+- **Damage meter** built on Blizzard's combat data: damage, healing or damage taken, the latest fights to pick from, per-spell detail and a reset button.
+- **Party threat meter** with threat % on your target and the current tank marked.
+- **Interrupt helper** next to the target frame: your interrupt, the target's cast bar, and a highlight when the cast can be interrupted.
+- **Flat nameplates**, **square minimap**, **gray chat timestamps**, **cooldown numbers**, **out-of-range buttons in red**
+- **Screen-relative positions**, so the layout keeps its shape across resolutions and UI scales
+- **Quality of life**: auto-sell junk, auto-repair, missing buff check on ready check, better gear notices, gathering tracking
+
+## Usage
+
+- Settings: `/ksui` or Options > AddOns > 검성UI. Every feature has its own toggle.
+- Reset the damage meter: the reset button on its title, or `/ksui reset`.
+- Apply the layout: the button at the top of the settings, or `/ksui layout` (creates the `KSUI` Edit Mode layout and reloads the UI).
+
+## Source
+
+GitHub: https://github.com/SpaceDLFactory/ksui — please report bugs and ideas as issues.
+License: GPL-3.0-or-later
+
+---
 
 # 검성UI (Kumsung UI)
 
@@ -40,32 +69,3 @@ WoW Forever(인터페이스 16001)용 오픈소스 UI입니다. 기본 UI를 어
 
 GitHub: https://github.com/SpaceDLFactory/ksui — 버그나 아이디어는 이슈로 남겨주세요.
 라이선스: GPL-3.0-or-later
-
----
-
-# Kumsung UI (English)
-
-An open-source UI for WoW Forever (interface 16001). It redraws the default UI in a dark, square style and gathers what you look at most along the bottom of the screen.
-It is built on Blizzard's own frames, so it keeps working under instance and raid combat restrictions (secret values).
-
-## Features
-
-- **Square unit frames** for player, target, focus and party, with animated 3D portraits and class-colored health. Clicks, menus and auras stay Blizzard's.
-- **Bottom layout**: experience bar, minimap, cast bar and cooldown manager stacked in the middle, action bars on both sides of the minimap. Applied with `/ksui layout`.
-- **Damage meter** built on Blizzard's combat data: damage, healing or damage taken, the latest fights to pick from, per-spell detail and a reset button.
-- **Party threat meter** with threat % on your target and the current tank marked.
-- **Interrupt helper** next to the target frame: your interrupt, the target's cast bar, and a highlight when the cast can be interrupted.
-- **Flat nameplates**, **square minimap**, **gray chat timestamps**, **cooldown numbers**, **out-of-range buttons in red**
-- **Screen-relative positions**, so the layout keeps its shape across resolutions and UI scales
-- **Quality of life**: auto-sell junk, auto-repair, missing buff check on ready check, better gear notices, gathering tracking
-
-## Usage
-
-- Settings: `/ksui` or Options > AddOns > 검성UI. Every feature has its own toggle.
-- Reset the damage meter: the reset button on its title, or `/ksui reset`.
-- Apply the layout: the button at the top of the settings, or `/ksui layout` (creates the `KSUI` Edit Mode layout and reloads the UI).
-
-## Source
-
-GitHub: https://github.com/SpaceDLFactory/ksui — please report bugs and ideas as issues.
-License: GPL-3.0-or-later
