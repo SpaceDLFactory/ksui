@@ -24,6 +24,8 @@ local OPTIONS = {
 	{ key = "rangeColor", label = "사거리 밖 버튼 빨갛게", default = true, refresh = "RefreshRange" },
 	{ key = "threatNumbers", label = "대상 프레임에 위협 수치", default = true, refresh = "RefreshCVars" },
 	{ key = "interruptHelper", label = "대상 프레임 옆에 대상 시전바와 내 차단기", default = true, refresh = "RefreshInterrupt" },
+	{ key = "damageMeter", label = "딜미터 (제목 좌클릭: 종류, 우클릭: 현재/전체, /ksui reset: 초기화)", default = true, refresh = "RefreshMeter" },
+	{ key = "threatMeter", label = "파티 위협 미터 (파티일 때)", default = true, refresh = "RefreshThreat" },
 	{ key = "fadeBars", label = "비전투 시 액션바 흐리게", default = true, refresh = "RefreshBarFade" },
 	{ key = "fadeAlpha", label = "흐릴 때 불투명도", default = 0.4, min = 0.1, max = 1, step = 0.05, refresh = "RefreshBarFade" },
 	{ header = "편의" },

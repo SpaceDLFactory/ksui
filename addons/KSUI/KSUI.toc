@@ -11,6 +11,8 @@ Core.lua
 Skin.lua
 UnitFrames.lua
 Nameplates.lua
+Meter.lua
+Threat.lua
 Cooldown.lua
 Layout.lua
 Combat.lua

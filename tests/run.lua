@@ -21,7 +21,11 @@ local function texture()
 	function t:SetDesaturated(v) self.desaturated = v end
 	function t:SetVertexColor(r, g, b) self.color = { r, g, b } end
 	function t:SetTexCoord(...) self.coords = { ... } end
-	function t:SetTexture(v) self.file = v end
+	-- Wrap modes are strings; a number there means a multi-return call leaked into them.
+	function t:SetTexture(v, h, w)
+		assert((h == nil or type(h) == "string") and (w == nil or type(w) == "string"), "SetTexture given a non-string wrap mode")
+		self.file = v
+	end
 	function t:SetColorTexture(r, g, b) self.fill = { r, g, b } end
 	function t:SetAlpha(a) self.alpha = a end
 	function t:GetAlpha() return self.alpha or 1 end
@@ -29,6 +33,8 @@ local function texture()
 	function t:SetPoint(...) self.point = { ... }; self.points = (self.points or 0) + 1 end
 	function t:SetJustifyH(j) self.justify = j end
 	function t:SetWordWrap(v) self.wrap = v end
+	function t:SetWidth(w) self.width = w end
+	function t:SetTextColor(r, g, b) self.textColor = { r, g, b } end
 	function t:ClearAllPoints() self.points = 0 end
 	function t:SetDrawLayer(l) self.layer = l end
 	function t:SetAllPoints() end
@@ -136,7 +142,11 @@ local function world(state)
 			if name == "OnEvent" then handlers[#handlers + 1] = { frame = f, fn = fn } end
 		end
 		function f:SetSize(w, h) self.size = { w, h } end
-		function f:SetPoint(...) self.point = { ... } end
+		function f:SetPoint(...)
+			self.point = { ... }
+			self.points = self.points or {}
+			self.points[select(1, ...)] = { ... }
+		end
 		function f:SetText(t) self.text = t end
 		function f:SetAllPoints() end
 		function f:SetShown(v) self.shown = v end
@@ -162,6 +172,9 @@ local function world(state)
 		function f:SetWidth(w) self.width = w end
 		function f:ClearAllPoints() self.point = nil end
 		function f:GetParent() return self.parent end
+		function f:SetHeight(h) self.height = h end
+		function f:EnableMouse(v) self.mouse = v end
+		function f:IsShown() return self.shown ~= false end
 		function f:SetStatusBarColor(r, g, b) self.color = { r, g, b } end
 		function f:ClearModel() self.modelUnit = nil end
 		function f:SetUnit(u) self.modelUnit = u; self.modelLoads = (self.modelLoads or 0) + 1 end
@@ -281,6 +294,57 @@ local function world(state)
 		return state.plates[unit]
 	end }
 	env.NamePlateDriverFrame = { OnNamePlateAdded = function() end }
+	-- state.meter = { available, session = { combatSources, maxAmount } or "LOCKED", calls }
+	state.meter = state.meter or { available = true, session = { combatSources = {}, maxAmount = 0 } }
+	env.C_DamageMeter = {
+		IsDamageMeterAvailable = function() return state.meter.available, "" end,
+		GetCombatSessionFromType = function(sessionType, meterType)
+			state.meter.asked = { sessionType, meterType }
+			if state.meter.session == "LOCKED" then return { locked = true } end
+			return copy(state.meter.session)
+		end,
+		ResetAllCombatSessions = function() state.meter.reset = true end,
+		GetAvailableCombatSessions = function() return copy(state.meter.past or {}) end,
+		GetCombatSessionFromID = function(id, meterType)
+			state.meter.asked = { "id", id, meterType }
+			return copy(state.meter.session)
+		end,
+		GetCombatSessionSourceFromType = function(sessionType, meterType, guid, creatureID)
+			assert(guid ~= SECRET and creatureID ~= SECRET, "secret passed to a source query")
+			state.meter.sourceAsked = { sessionType, meterType, guid, creatureID }
+			return copy(state.meter.spells)
+		end,
+		GetCombatSessionSourceFromID = function(id, meterType, guid, creatureID)
+			state.meter.sourceAsked = { "id", id, meterType, guid }
+			return copy(state.meter.spells)
+		end,
+	}
+	function env.SecondsToClock(s) return string.format("%d:%02d", math.floor(s / 60), s % 60) end
+	-- The context menu runs its generator at once and keeps the radios it was given.
+	env.MenuUtil = { CreateContextMenu = function(owner, generator)
+		local root = { radios = {} }
+		function root:CreateRadio(text, isSelected, choose, data) self.radios[#self.radios + 1] = { text = text, isSelected = isSelected, choose = choose, data = data } end
+		function root:CreateDivider() end
+		function root:CreateTitle(text) self.title = text end
+		generator(owner, root)
+		state.menu = root
+	end }
+	function env.IsShiftKeyDown() return state.shift end
+	-- state.screen = { width, height } of UIParent in UI units; the default is the 1200-tall reference screen.
+	local screen = state.screen or { 2133, 1200 }
+	env.UIParent = { name = "UIParent", GetWidth = function() return screen[1] end, GetHeight = function() return screen[2] end }
+	env.ObjectiveTrackerFrame = { name = "ObjectiveTrackerFrame" }
+	-- state.threat = { unit -> { isTanking, percent } }; a missing unit has no threat entry.
+	state.threat = state.threat or {}
+	function env.UnitDetailedThreatSituation(unit, mob)
+		assert(mob == "target")
+		local t = state.threat[unit]
+		if t then return t[1], 3, t[2], t[2], 100 end
+	end
+	function env.IsInGroup() return state.group == true end
+	function env.UnitCanAttack(a, b) assert(a == "player" and b == "target"); return state.units.target and state.units.target.hostile end
+	env.KSUIDamageMeter = { name = "KSUIDamageMeter", IsShown = function() return state.meterShown ~= false end }
+	function env.GameTooltip_SetDefaultAnchor() end
 	env.PowerBarColor = { MANA = { r = 0, g = 0, b = 1 }, RAGE = { r = 1, g = 0, b = 0 } }
 	function env.IsInRaid() return state.raid ~= nil end
 	function env.GetNumGroupMembers() return state.groupSize or 0 end
@@ -311,7 +375,9 @@ local function world(state)
 	local SPELLS = { [1243] = "신의 권능: 인내", [21562] = "인내의 기원", [1126] = "야생의 징표", [21849] = "야생의 선물",
 		[1459] = "신비한 지능", [23028] = "신비한 총명함",
 		[853] = "심판의 망치", [5588] = "심판의 망치", [20271] = "심판" }
-	env.C_Spell = { GetSpellName = function(id) return SPELLS[id] end }
+	env.C_Spell = { GetSpellName = function(id) return SPELLS[id] end,
+		-- Like the client: icon, original icon, conditional icon.
+		GetSpellTexture = function(id) return "tex" .. tostring(id), 1, 2 end }
 	env.C_UnitAuras = { GetAuraDataByIndex = function(unit, i, filter)
 		assert(unit == "player" and filter == "HELPFUL")
 		local name = (state.auras or {})[i]
@@ -917,7 +983,7 @@ do
 		and tracker.anchorInfo.relativePoint == "BOTTOMRIGHT" and tracker.anchorInfo.offsetX == -10 and tracker.anchorInfo.offsetY == 10
 		and not tracker.isInDefaultPosition)
 	check("tracker at minimum height", values(tracker)[0] == 0 and values(tracker)[1] == 0)
-	check("tooltip above the tracker", tooltip.anchorInfo.point == "BOTTOMRIGHT" and tooltip.anchorInfo.relativeTo == "ObjectiveTrackerFrame"
+	check("tooltip anchor stays on Blizzard's tracker", tooltip.anchorInfo.point == "BOTTOMRIGHT" and tooltip.anchorInfo.relativeTo == "ObjectiveTrackerFrame"
 		and tooltip.anchorInfo.relativePoint == "TOPRIGHT" and tooltip.anchorInfo.offsetY == 10 and not tooltip.isInDefaultPosition)
 	check("preset bar settings not mutated", saved[2].systems[8].settings[1].value == 1)
 	check("boss frames above-left of the quest tracker", boss.anchorInfo.point == "BOTTOMRIGHT" and boss.anchorInfo.relativeTo == "ObjectiveTrackerFrame"
@@ -1596,6 +1662,170 @@ do
 	unitFrame:UpdateAnchors()
 	check("Blizzard look returns when off", bar.bgTexture.file == "Interface\\Tooltips\\Nameplate-Border"
 		and unitFrame.PlayerLevelDiffFrame.alpha == 1)
+end
+
+do
+	local past = {}
+	for i = 1, 30 do past[i] = { sessionID = i, name = "몹" .. i } end
+	local state = { units = { player = mage }, meter = { available = true, past = past,
+		session = { combatSources = {}, maxAmount = 0 } } }
+	boot(state)
+	local button
+	for _, f in ipairs(state.frames) do
+		if f.kind == "Button" and f.scripts.OnClick and f.parent and f.parent.rows and #f.parent.rows == 8 then button = f end
+	end
+	button.scripts.OnClick(button, "RightButton")
+	check("menu keeps the latest 15 fights", #state.menu.radios == 17 and state.menu.radios[1].text == "몹30"
+		and state.menu.radios[15].text == "몹16")
+end
+
+-- Damage meter
+local function meterFrame(state)
+	for _, f in ipairs(state.frames) do
+		if f.rows then return f end
+	end
+end
+
+do
+	local mageSource = { classFilename = "MAGE", name = "Me", totalAmount = 900, amountPerSecond = 30 }
+	local wolf = { classFilename = "", name = "Wolf", totalAmount = 300, amountPerSecond = 10 }
+	local state = { units = { player = mage },
+		meter = { available = true, session = { combatSources = { mageSource, wolf }, maxAmount = 900 } } }
+	local env = boot(state)
+	local meter = meterFrame(state)
+	check("meter as wide as the tracker, above it", meter.points.BOTTOMLEFT[2] == env.ObjectiveTrackerFrame
+		and meter.points.BOTTOMLEFT[3] == "TOPLEFT" and meter.points.BOTTOMRIGHT[3] == "TOPRIGHT"
+		and meter.points.BOTTOMRIGHT[5] == 10 and meter.width == nil and meter.shown ~= false)
+	check("damage done, current fight by default", state.meter.asked[1] == 1 and state.meter.asked[2] == 0
+		and meter.title.format[2] == "피해량" and meter.title.format[3] == "현재")
+	local first, second = meter.rows[1], meter.rows[2]
+	check("rows in Blizzard's order", first.name.format[3] == "Me" and second.name.format[3] == "Wolf" and first.name.format[2] == 1)
+	check("row bar and numbers", first.range[2] == 900 and first.barValue == 900 and first.value.format[2] == "900"
+		and first.value.format[1] == "%s (%.1f)" and first.value.format[3] == 30)
+	check("class color, creature gray", first.color[1] == 0.2 and second.color[1] == 0.6)
+	check("unused rows hidden and window fits", meter.rows[3].shown == false and meter.height == 18 + 2 * 16 + 1)
+	check("Blizzard's data source switched on", state.cvars.damageMeterEnabled == "1")
+
+	local button, reset
+	for _, f in ipairs(state.frames) do
+		if f.kind == "Button" and f.parent == meter then button = f end
+	end
+	for _, f in ipairs(state.frames) do
+		if f.kind == "Button" and f.parent == button then reset = f end
+	end
+	check("reset button on the title's right", reset and reset.point[1] == "BOTTOMRIGHT" and reset.label.text == "초기화")
+	button.scripts.OnClick(button, "LeftButton")
+	check("left-click cycles to healing", state.meter.asked[2] == 2 and meter.title.format[2] == "치유량")
+	state.meter.past = { { sessionID = 7, name = "나이트래쉬", durationSeconds = 75 }, { sessionID = 8, name = "" } }
+	fire(env, "DAMAGE_METER_COMBAT_SESSION_UPDATED", 0, 7)
+	button.scripts.OnClick(button, "RightButton")
+	local radios = state.menu.radios
+	check("menu titled, newest fight first, then current and all", state.menu.title == "전투 선택"
+		and radios[1].text == "전투 8" and radios[2].text == "11-15 20:09:00 나이트래쉬 [1:15]"
+		and radios[3].text == "현재" and radios[4].text == "전체" and radios[3].isSelected(radios[3].data))
+	radios[2].choose(radios[2].data)
+	check("past fight read by id", state.meter.asked[1] == "id" and state.meter.asked[2] == 7
+		and meter.title.format[3] == "11-15 20:09:00 나이트래쉬 [1:15]")
+	button.scripts.OnClick(button, "RightButton")
+	state.menu.radios[4].choose(state.menu.radios[4].data)
+	check("right-click menu switches to all fights", state.meter.asked[1] == 0 and meter.title.format[3] == "전체")
+	-- Spell detail for the first row.
+	state.meter.spells = { totalAmount = 900, maxAmount = 600, combatSpells = {
+		{ spellID = 20271, totalAmount = 600, amountPerSecond = 20 }, { spellID = 853, totalAmount = 300, amountPerSecond = 10 } } }
+	first.source.guid = "Player-1"
+	first.scripts.OnMouseUp(first, "LeftButton")
+	local detail
+	for _, f in ipairs(state.frames) do
+		if f.rows and #f.rows == 10 then detail = f end
+	end
+	check("row click opens the spell detail", detail.shown == true and state.meter.sourceAsked[3] == "Player-1"
+		and detail.title.format[2] == "Me")
+	local spell = detail.rows[1]
+	check("spell rows with icon, name and share", spell.icon.file == "tex20271" and spell.name.text == "심판"
+		and spell.value.format[1] == "%s (%.1f) %.0f%%" and spell.value.format[4] == 600 / 900 * 100
+		and detail.rows[3].shown == false)
+	first.scripts.OnMouseUp(first, "LeftButton")
+	check("second click closes the detail", detail.shown == false)
+	first.source.guid = SECRET
+	first.scripts.OnMouseUp(first, "LeftButton")
+	check("secret unit asks to wait for combat to end", detail.shown == false and state.printed:find("전투가 끝나면", 1, true) ~= nil)
+	first.source.guid = "Player-1"
+
+	reset.scripts.OnClick(reset)
+	check("reset button clears the meter", state.meter.reset == true and meter.title.format[3] == "현재")
+	state.meter.reset = nil
+	env.SlashCmdList.KSUI("reset")
+	check("/ksui reset clears the meter", state.meter.reset == true)
+
+	-- In combat the session can be locked, or its values secret.
+	state.meter.session = "LOCKED"
+	fire(env, "DAMAGE_METER_CURRENT_SESSION_UPDATED")
+	check("locked session keeps the last picture", first.name.format[3] == "Me")
+	state.meter.session = { combatSources = { { classFilename = "MAGE", name = SECRET, totalAmount = SECRET,
+		amountPerSecond = SECRET } }, maxAmount = SECRET }
+	fire(env, "DAMAGE_METER_COMBAT_SESSION_UPDATED")
+	check("secret values reach only secret-safe setters", first.barValue == SECRET and first.range[2] == SECRET
+		and first.name.format[3] == SECRET and first.value.format[2] == SECRET and second.shown == false)
+
+	state.settings.damageMeter:SetValue(false)
+	check("meter off", meter.shown == false)
+end
+
+do
+	local state = { units = { player = mage }, meter = { available = false, session = { combatSources = {}, maxAmount = 0 } } }
+	boot(state)
+	check("meter hidden when Blizzard's is unavailable", meterFrame(state).shown == false)
+end
+
+-- Threat meter
+local function threatFrame(state)
+	for _, f in ipairs(state.frames) do
+		if f.rows and #f.rows == 5 then return f end
+	end
+end
+
+do
+	local state = { units = { player = mage, party1 = { player = true, class = "MAGE", name = "Tank" },
+		target = { player = false, hostile = true } }, group = true,
+		threat = { player = { false, 40 }, party1 = { true, 100 } } }
+	local env = boot(state)
+	local threat = threatFrame(state)
+	check("threat meter as wide as the damage meter, above it", threat.points.BOTTOMLEFT[2] == env.KSUIDamageMeter
+		and threat.points.BOTTOMRIGHT[3] == "TOPRIGHT" and threat.width == nil)
+	check("threat shown in a group on a hostile target", threat.shown == true)
+	local first, second = threat.rows[1], threat.rows[2]
+	check("threat sorted high to low", first.name.text == "Tank" and first.barValue == 100 and second.barValue == 40
+		and first.value.format[2] == 100)
+	check("tank marked", first.tanking.alpha == 1 and second.tanking.alpha == 0)
+	check("rows without threat hidden", threat.rows[3].shown == false and threat.height == 18 + 2 * 16 + 1)
+
+	state.threat = { player = { SECRET, SECRET }, party1 = { SECRET, SECRET } }
+	fire(env, "UNIT_THREAT_LIST_UPDATE")
+	check("secret threat keeps party order", first.name.text == "Name" and first.barValue == SECRET
+		and first.value.format[2] == SECRET)
+	check("secret tanking flag via boolean setter", first.tanking.alphaFrom[1] == SECRET)
+
+	state.group = false
+	fire(env, "GROUP_ROSTER_UPDATE")
+	check("threat hidden when alone", threat.shown == false)
+	state.group = true
+	state.units.target.hostile = false
+	fire(env, "PLAYER_TARGET_CHANGED")
+	check("threat hidden on a friendly target", threat.shown == false)
+	state.units.target.hostile = true
+	fire(env, "PLAYER_TARGET_CHANGED")
+	local tooltip = { ClearAllPoints = function(self) self.point = nil end, SetPoint = function(self, ...) self.point = { ... } end }
+	env.GameTooltip_SetDefaultAnchor(tooltip, env.UIParent)
+	check("tooltip above the threat meter while it shows", tooltip.point[2] == threat and tooltip.point[3] == "TOPRIGHT"
+		and tooltip.point[5] == 10)
+	state.settings.threatMeter:SetValue(false)
+	check("threat meter off", threat.shown == false)
+	env.GameTooltip_SetDefaultAnchor(tooltip, env.UIParent)
+	check("tooltip above the damage meter otherwise", tooltip.point[2] == env.KSUIDamageMeter)
+	state.meterShown = false
+	tooltip.point = { "Blizzard" }
+	env.GameTooltip_SetDefaultAnchor(tooltip, env.UIParent)
+	check("tooltip left alone with no meter", tooltip.point[1] == "Blizzard")
 end
 
 print(string.format("%d checks, %d failures", count, failures))

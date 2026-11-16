@@ -214,6 +214,10 @@ function ns.RefreshCVars()
 		if ns.db.dispellableOnly then
 			SetCVar("raidFramesDisplayDebuffs", "1")
 		end
+		-- KSUI's meter reads Blizzard's damage meter data, so Blizzard's meter stays switched on with its window hidden.
+		if ns.db.damageMeter then
+			SetCVar("damageMeterEnabled", "1")
+		end
 		if ns.db.threatNumbers then
 			SetCVar("threatWarning", "3")
 		end

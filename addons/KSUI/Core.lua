@@ -60,6 +60,8 @@ events:SetScript("OnEvent", function(_, event, ...)
 		ns.InitSkin()
 		ns.InitUnitFrames()
 		ns.InitNameplates()
+		ns.InitMeter()
+		ns.InitThreat()
 		ns.InitMinimap()
 		ns.InitCombat()
 		ns.InitInterrupt()
@@ -95,6 +97,8 @@ SLASH_KSUI1 = "/ksui"
 SlashCmdList.KSUI = function(message)
 	if message == "layout" then
 		ns.ApplyLayout()
+	elseif message == "reset" then
+		ns.ResetMeter()
 	elseif message == "stats" then
 		ns.PrintGearStats()
 	else

@@ -30,6 +30,7 @@ local function outlinedText(bar)
 	text:SetFont(font, size, "OUTLINE")
 	return text
 end
+ns.OutlinedText = outlinedText
 
 local function statusBar(parent)
 	local bar = CreateFrame("StatusBar", nil, parent)

@@ -102,7 +102,8 @@ local function moveFrames(layout)
 				setValues(tracker, { [Enum.EditModeObjectiveTrackerSetting.Height] = 0 })
 			end },
 		},
-		-- Above the tracker, clear of the right end of the bottom bars.
+		-- Above the tracker, clear of the right end of the bottom bars. KSUI's meters on the tracker move tooltips up
+		-- themselves, so the saved layout never depends on an addon frame.
 		[kinds.HudTooltip] = { [0] = { anchor("BOTTOMRIGHT", "ObjectiveTrackerFrame", "TOPRIGHT", 0, 10) } },
 		-- KSUI draws its own meter above the quest tracker from the same data.
 		[kinds.DamageMeter] = { [0] = { false, function(system)
