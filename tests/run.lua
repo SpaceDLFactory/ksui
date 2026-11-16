@@ -343,8 +343,12 @@ local function world(state)
 	env.Enum = {
 		LuaCurveType = { Linear = 0, Step = 1 },
 		EditModeSystem = { ActionBar = 0, CastBar = 1, Minimap = 2, UnitFrame = 3, AuraFrame = 6, ChatFrame = 8, HudTooltip = 11,
-			ObjectiveTracker = 12, MicroMenu = 13, Bags = 14, StatusTrackingBar = 15, DurabilityFrame = 16, CooldownViewer = 20,
-			MainActionBarEndCap = 26 },
+			ObjectiveTracker = 12, MicroMenu = 13, Bags = 14, StatusTrackingBar = 15, DurabilityFrame = 16, CooldownViewer = 20, VehicleLeaveButton = 9, GroupFinder = 27,
+			MainActionBarEndCap = 26, DamageMeter = 23 },
+		DamageMeterType = { DamageDone = 0, HealingDone = 2, DamageTaken = 7 },
+		DamageMeterSessionType = { Overall = 0, Current = 1 },
+		EditModeDamageMeterSetting = { Visibility = 0 },
+		DamageMeterVisibility = { Always = 0, Hidden = 2 },
 		EditModeCooldownViewerSystemIndices = { Essential = 1, Utility = 2, BuffIcon = 3, BuffBar = 4 },
 		EditModeActionBarSystemIndices = { MainBar = 1, Bar2 = 2, Bar3 = 3, RightBar1 = 4, RightBar2 = 5, StanceBar = 11, PetActionBar = 12 },
 		EditModeActionBarSetting = { Orientation = 0, NumRows = 1, NumIcons = 2, IconSize = 3, HideBarArt = 6, AlwaysShowButtons = 9 },
@@ -761,6 +765,9 @@ local function systems(playerX)
 		{ system = 20, systemIndex = 2, anchorInfo = { point = "BOTTOM", offsetY = 240 }, isInDefaultPosition = true },
 		{ system = 20, systemIndex = 3, anchorInfo = { point = "BOTTOM", offsetY = 370 }, isInDefaultPosition = true },
 		{ system = 20, systemIndex = 4, anchorInfo = { point = "BOTTOM", offsetX = 420, offsetY = 430 }, isInDefaultPosition = true },
+		{ system = 9, anchorInfo = { point = "BOTTOM", relativeTo = "MainActionBar" }, isInDefaultPosition = true },
+		{ system = 27, anchorInfo = { point = "CENTER", relativeTo = "Minimap" }, isInDefaultPosition = true },
+		{ system = 23, anchorInfo = { point = "RIGHT" }, isInDefaultPosition = true, settings = { { setting = 0, value = 0 } } },
 		{ system = 26, systemIndex = 1, anchorInfo = { point = "RIGHT", relativeTo = "MainActionBar" }, isInDefaultPosition = true,
 			settings = { { setting = 0, value = 0 } } },
 		{ system = 26, systemIndex = 2, anchorInfo = { point = "LEFT", relativeTo = "MainActionBar" }, isInDefaultPosition = true,
@@ -839,6 +846,21 @@ do
 		and stance.anchorInfo.relativeTo == "MultiBarRight" and stance.anchorInfo.relativePoint == "TOPRIGHT"
 		and stance.anchorInfo.offsetX == 0 and stance.anchorInfo.offsetY == 4 and not stance.isInDefaultPosition)
 	check("pet bar above the new row", above(pet, "MultiBarLeft"))
+	local leave, eye
+	for _, sys in ipairs(layout.systems) do
+		if sys.system == 9 then leave = sys end
+		if sys.system == 27 then eye = sys end
+	end
+	local blizzardMeter
+	for _, sys in ipairs(layout.systems) do
+		if sys.system == 23 then blizzardMeter = sys end
+	end
+	check("Blizzard's meter window hidden in place", blizzardMeter.settings[1].value == 2 and blizzardMeter.isInDefaultPosition)
+	check("queue eye in the bottom-left corner", eye.anchorInfo.point == "BOTTOMLEFT" and eye.anchorInfo.relativeTo == "UIParent"
+		and eye.anchorInfo.offsetX == 10 and eye.anchorInfo.offsetY == 10 and not eye.isInDefaultPosition)
+	check("exit button beside the player frame", leave.system == 9 and leave.anchorInfo.point == "RIGHT"
+		and leave.anchorInfo.relativeTo == "PlayerFrame" and leave.anchorInfo.relativePoint == "LEFT"
+		and leave.anchorInfo.offsetX == -8 and not leave.isInDefaultPosition)
 	local durability = layout.systems[#layout.systems]
 	check("durability figure on the right end of the bar row", durability.system == 16
 		and durability.anchorInfo.point == "BOTTOMRIGHT" and durability.anchorInfo.relativeTo == "MultiBarLeft"

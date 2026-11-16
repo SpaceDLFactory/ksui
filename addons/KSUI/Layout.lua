@@ -104,9 +104,18 @@ local function moveFrames(layout)
 		},
 		-- Above the tracker, clear of the right end of the bottom bars.
 		[kinds.HudTooltip] = { [0] = { anchor("BOTTOMRIGHT", "ObjectiveTrackerFrame", "TOPRIGHT", 0, 10) } },
+		-- KSUI draws its own meter above the quest tracker from the same data.
+		[kinds.DamageMeter] = { [0] = { false, function(system)
+			setValues(system, { [Enum.EditModeDamageMeterSetting.Visibility] = Enum.DamageMeterVisibility.Hidden })
+		end } },
 		-- The armor figure and its repair warning leave the middle of the right edge for the right end of the
 		-- bars beside the minimap. A pet bar starts from the left end of that row, so the two stay apart.
 		[kinds.DurabilityFrame] = { [0] = { anchor("BOTTOMRIGHT", "MultiBarLeft", "TOPRIGHT", 0, BAR_SPACING) } },
+		-- The flight and vehicle exit button would otherwise sit on the main bar's buttons; beside your frame it is
+		-- still at hand.
+		[kinds.VehicleLeaveButton] = { [0] = { anchor("RIGHT", "PlayerFrame", "LEFT", -BARS_BESIDE_MINIMAP, 0) } },
+		-- The queue eye would sit on the minimap's corner; the bottom-left corner under the chat is empty.
+		[kinds.GroupFinder] = { [0] = { anchor("BOTTOMLEFT", "UIParent", "BOTTOMLEFT", TRACKER_EDGE_GAP, TRACKER_EDGE_GAP) } },
 		[actionBar] = {
 			-- Without its border art and empty squares the main bar matches the bars stacked on it.
 			[bars.MainBar] = { anchor("BOTTOMRIGHT", "MinimapCluster", "BOTTOMLEFT", -BARS_BESIDE_MINIMAP, 0), function(system)
