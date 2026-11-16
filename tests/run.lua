@@ -1863,6 +1863,10 @@ do
 	local first, second = threat.rows[1], threat.rows[2]
 	check("threat sorted high to low", first.name.text == "Tank" and first.barValue == 100 and second.barValue == 40
 		and first.value.format[2] == 100)
+	state.units.party1.surname = "방패"
+	fire(env, "UNIT_THREAT_LIST_UPDATE")
+	check("threat names carry the surname", first.name.format[2] == "Tank" and first.name.format[4] == "방패")
+	state.units.party1.surname = nil
 	check("tank marked", first.tanking.alpha == 1 and second.tanking.alpha == 0)
 	check("rows without threat hidden", threat.rows[3].shown == false and threat.height == 18 + 2 * 16 + 1)
 

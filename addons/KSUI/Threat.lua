@@ -68,7 +68,14 @@ function ns.RefreshThreat()
 		if entry then
 			bar:SetStatusBarColor(ns.UnitColor(entry.unit))
 			bar:SetValue(entry.percent)
-			bar.name:SetText(UnitName(entry.unit))
+			-- Forever names carry a surname, joined as on the unit frames; either part may be secret.
+			local name, surname = UnitName(entry.unit)
+			if issecretvalue(surname) or surname then
+				bar.name:SetFormattedText("%s%s%s", name, Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR,
+					surname)
+			else
+				bar.name:SetText(name)
+			end
 			bar.value:SetFormattedText("%.0f%%", entry.percent)
 			if issecretvalue(entry.isTanking) then
 				bar.tanking:SetAlphaFromBoolean(entry.isTanking, 1, 0)
