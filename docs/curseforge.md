@@ -1,16 +1,15 @@
 <!--
 CurseForge project page text. Paste the summary and the description (in the editor's Markdown mode) by hand.
-Keep this in step with the features in the uploaded version. 0.9.3 is the first upload; the damage meter, threat meter
-and screen-relative positions come later and get their lines back then.
+Keep this in step with the features in the uploaded version.
 -->
 
 # Summary
 
-WoW Forever용 어두운 네모 UI. 하단 배치, 네모 유닛 프레임, 이름표, 레이드에서도 안전하게. / A dark, square, bottom-anchored UI for WoW Forever.
+WoW Forever용 어두운 네모 UI. 하단 배치, 네모 유닛 프레임, 딜·위협 미터, 레이드에서도 안전하게. / A dark, square, bottom-anchored UI for WoW Forever.
 
 # Categories
 
-Unit Frames, Action Bars, Map & Minimap, Combat
+Unit Frames, Action Bars, Map & Minimap, Combat, Damage Dealer
 
 # Description
 
@@ -23,15 +22,19 @@ WoW Forever(인터페이스 16001)용 오픈소스 UI입니다. 기본 UI를 어
 
 - **네모 유닛 프레임** — 내·대상·주시·파티 프레임을 네모 초상화(움직이는 3D)와 직업색 체력바로. 클릭·메뉴·버프는 블리자드 그대로.
 - **하단 배치** — 경험치바, 미니맵, 시전바, 쿨다운 관리자를 가운데 아래로 쌓고, 단축바를 미니맵 양옆에 배치. 명령어 한 줄(`/ksui layout`)로 적용.
+- **딜미터** — 블리자드 전투 데이터를 쓰는 딜미터. 피해량·치유량·받은 피해, 최근 전투 선택, 스킬별 상세, 초기화 버튼.
+- **파티 위협 미터** — 파티일 때 대상에 대한 파티원 위협 %와 탱커 표시.
 - **차단 보조** — 대상 프레임 옆에 내 차단기와 대상 시전바, 끊을 수 있는 시전이면 노란 테두리.
 - **납작한 이름표** — 평평한 체력바와 얇은 검은 테두리.
 - **네모 미니맵**, **채팅 시간 표시(회색)**, **쿨다운 숫자**, **사거리 밖 버튼 빨갛게**
+- **화면 비율 배치** — 위치를 화면 대비 %로 저장해서 해상도·UI 크기가 달라도 같은 모양
 - **편의 기능** — 잡템 자동 판매, 자동 수리, 준비 확인 때 빠진 버프 알림, 더 좋은 장비 알림, 채집 추적 자동 켜기
 
 ## 사용법
 
 - 설정: `/ksui` 또는 설정 > 애드온 > 검성UI. 모든 기능을 하나씩 켜고 끌 수 있습니다.
-- 화면 배치 적용: `/ksui layout` (편집 모드 레이아웃 `KSUI`를 새로 만들고 UI를 다시 불러옵니다.)
+- 딜미터 초기화: 딜미터 제목의 `초기화` 버튼 또는 `/ksui reset`
+- 화면 배치 적용: 설정 맨 위 `화면 배치 적용` 버튼 또는 `/ksui layout` (편집 모드 레이아웃 `KSUI`를 새로 만들고 UI를 다시 불러옵니다.)
 
 ## 소스와 문의
 
@@ -49,14 +52,18 @@ It is built on Blizzard's own frames, so it keeps working under instance and rai
 
 - **Square unit frames** for player, target, focus and party, with animated 3D portraits and class-colored health. Clicks, menus and auras stay Blizzard's.
 - **Bottom layout**: experience bar, minimap, cast bar and cooldown manager stacked in the middle, action bars on both sides of the minimap. Applied with `/ksui layout`.
+- **Damage meter** built on Blizzard's combat data: damage, healing or damage taken, the latest fights to pick from, per-spell detail and a reset button.
+- **Party threat meter** with threat % on your target and the current tank marked.
 - **Interrupt helper** next to the target frame: your interrupt, the target's cast bar, and a highlight when the cast can be interrupted.
 - **Flat nameplates**, **square minimap**, **gray chat timestamps**, **cooldown numbers**, **out-of-range buttons in red**
+- **Screen-relative positions**, so the layout keeps its shape across resolutions and UI scales
 - **Quality of life**: auto-sell junk, auto-repair, missing buff check on ready check, better gear notices, gathering tracking
 
 ## Usage
 
 - Settings: `/ksui` or Options > AddOns > 검성UI. Every feature has its own toggle.
-- Apply the layout: `/ksui layout` (creates the `KSUI` Edit Mode layout and reloads the UI).
+- Reset the damage meter: the reset button on its title, or `/ksui reset`.
+- Apply the layout: the button at the top of the settings, or `/ksui layout` (creates the `KSUI` Edit Mode layout and reloads the UI).
 
 ## Source
 
