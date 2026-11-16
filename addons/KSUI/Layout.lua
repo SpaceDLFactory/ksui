@@ -187,6 +187,16 @@ local function moveFrames(layout)
 	end
 end
 
+-- Blizzard's alerts (a new recipe, an achievement, loot) stack up from a point 128 above the bottom of the screen
+-- (Blizzard_FrameXML/Mainline/AlertFrames.xml), where the minimap now sits, so they start above the cooldown manager.
+-- Nothing in Blizzard's code moves that point again.
+local ALERTS_ABOVE_COOLDOWNS = 10
+
+function ns.PlaceAlerts()
+	AlertFrame:ClearAllPoints()
+	AlertFrame:SetPoint("BOTTOM", BuffBarCooldownViewer, "TOP", 0, ALERTS_ABOVE_COOLDOWNS)
+end
+
 -- Saves a copy of the active layout with the frames moved, then reloads to clear addon taint from Edit Mode.
 function ns.ApplyLayout()
 	if InCombatLockdown() then

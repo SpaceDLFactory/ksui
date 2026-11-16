@@ -343,6 +343,8 @@ local function world(state)
 	end
 	function env.IsInGroup() return state.group == true end
 	function env.UnitCanAttack(a, b) assert(a == "player" and b == "target"); return state.units.target and state.units.target.hostile end
+	env.BuffBarCooldownViewer = { name = "BuffBarCooldownViewer" }
+	env.AlertFrame = { ClearAllPoints = function(self) self.point = nil end, SetPoint = function(self, ...) self.point = { ... } end }
 	env.KSUIDamageMeter = { name = "KSUIDamageMeter", IsShown = function() return state.meterShown ~= false end }
 	function env.GameTooltip_SetDefaultAnchor() end
 	env.PowerBarColor = { MANA = { r = 0, g = 0, b = 1 }, RAGE = { r = 1, g = 0, b = 0 } }
@@ -1438,6 +1440,15 @@ do
 	tracking[#tracking + 1] = { spellID = 43308, active = false }
 	fire(env, "LEARNED_SPELL_IN_SKILL_LINE")
 	check("newly learned fishing tracked", tracking[6].active == true)
+end
+
+-- Alerts
+do
+	local state = { units = { player = mage } }
+	local env = boot(state)
+	local p = env.AlertFrame.point
+	check("alerts start above the cooldown manager, off the minimap", p[1] == "BOTTOM" and p[2] == env.BuffBarCooldownViewer
+		and p[3] == "TOP" and p[5] == 10)
 end
 
 -- Blocked actions
