@@ -58,6 +58,14 @@ end
 function ns.RegisterOptions()
 	local category, layout = Settings.RegisterVerticalLayoutCategory("검성UI")
 
+	-- The two things done most after changing settings, at the top where they are found first.
+	layout:AddInitializer(CreateSettingsListSectionHeaderInitializer("빠른 실행"))
+	layout:AddInitializer(CreateSettingsButtonInitializer(
+		"화면 배치 적용", "적용", ns.ApplyLayout,
+		"현재 편집 모드 레이아웃을 KSUI로 복사해 아래 위치로 옮기고 UI를 다시 불러옵니다. (/ksui layout)", true))
+	layout:AddInitializer(CreateSettingsButtonInitializer(
+		"UI 다시 불러오기", "다시 불러오기", ReloadUI, "UI를 다시 불러옵니다. (/reload)", true))
+
 	for _, option in ipairs(OPTIONS) do
 		if option.header then
 			layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(option.header))
@@ -71,10 +79,6 @@ function ns.RegisterOptions()
 			addControl(category, setting, option)
 		end
 	end
-
-	layout:AddInitializer(CreateSettingsButtonInitializer(
-		"프레임 위치 적용", "적용", ns.ApplyLayout,
-		"현재 편집 모드 레이아웃을 KSUI로 복사해 위 위치로 옮기고 UI를 다시 불러옵니다.", true))
 
 	Settings.RegisterAddOnCategory(category)
 	ns.category = category

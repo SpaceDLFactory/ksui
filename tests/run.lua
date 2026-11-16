@@ -61,7 +61,14 @@ local function mockSettings(env, state)
 	state.settings, state.controls, state.headers = {}, {}, {}
 	local layout = {}
 	function layout:AddInitializer(init)
-		if init.buttonClick then state.button = init else state.headers[#state.headers + 1] = init.name end
+		if init.buttonClick then
+			state.buttons = state.buttons or {}
+			state.buttons[init.name] = init
+			-- Most tests press the layout button.
+			if init.name == "화면 배치 적용" then state.button = init end
+		else
+			state.headers[#state.headers + 1] = init.name
+		end
 	end
 	local category = { GetID = function() return 42 end }
 	local function control(kind)
@@ -553,8 +560,11 @@ do
 	check("color control", state.controls.KSUI_artColor.kind == "color")
 	check("slider control", state.controls.KSUI_cooldownFontSize.kind == "slider")
 	check("slider range", state.controls.KSUI_frameX.options.max == 500 and state.controls.KSUI_frameX.options.formatter == 1)
-	check("sections", #state.headers == 6)
 	check("button present", state.button and state.button.buttonClick == ns.ApplyLayout)
+	check("quick buttons first", state.headers[1] == "빠른 실행")
+	check("sections", #state.headers == 7)
+	state.buttons["UI 다시 불러오기"].buttonClick()
+	check("reload button reloads", state.reloaded == true)
 
 	local frame = env.PlayerFrame.PlayerFrameContainer.FrameTexture
 	state.settings.artColor:SetValue("ffff0000")
