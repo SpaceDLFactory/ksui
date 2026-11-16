@@ -36,10 +36,12 @@ local OPTIONS = {
 	{ key = "gatherTracking", label = "전문 기술 채집 추적 자동 켜기", default = true, refresh = "RefreshTracking" },
 	{ key = "chatTimestamps", label = "채팅에 시간 표시", default = true, refresh = "RefreshCVars" },
 	{ header = "프레임 위치" },
-	{ key = "frameX", label = "내/대상 프레임 중앙 거리", default = 130, min = 0, max = 500, step = 5 },
-	{ key = "frameY", label = "내/대상 프레임 높이", default = 220, min = 60, max = 600, step = 5 },
-	{ key = "groupX", label = "파티/공격대 왼쪽 여백", default = 20, min = 0, max = 1000, step = 5 },
-	{ key = "groupTopGap", label = "파티/공격대 위쪽 여백", default = 20, min = 0, max = 600, step = 5 },
+	-- Shares of the screen, so a different screen size or UI scale keeps the same arrangement. The defaults are the
+	-- old 130, 220, 20 and 20 UI units on the 2133 x 1200 screen KSUI was tuned on.
+	{ key = "frameXPct", label = "내/대상 프레임 중앙 거리 (화면 폭 %)", default = 6.1, min = 0, max = 30, step = 0.1 },
+	{ key = "frameYPct", label = "내/대상 프레임 높이 (화면 높이 %)", default = 18.3, min = 5, max = 50, step = 0.1 },
+	{ key = "groupXPct", label = "파티/공격대 왼쪽 여백 (화면 폭 %)", default = 0.9, min = 0, max = 50, step = 0.1 },
+	{ key = "groupTopPct", label = "파티/공격대 위쪽 여백 (화면 높이 %)", default = 1.7, min = 0, max = 50, step = 0.1 },
 }
 
 local VAR_TYPES = { boolean = "Boolean", number = "Number", string = "String" }

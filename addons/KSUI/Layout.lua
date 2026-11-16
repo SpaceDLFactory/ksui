@@ -11,6 +11,16 @@ local BARS_BESIDE_MINIMAP = 8
 local VIEWER_SPACING = 6
 -- Edit Mode saves the party frame size in 5% steps from 100%, so 5 steps is 125%.
 local PARTY_SIZE_STEPS = 5
+-- A screen taller in UI units than the reference (measured: the 224-unit player frame is 405 pixels on it) makes
+-- everything smaller, so the player and target frames grow by the same ratio, up to Edit Mode's 200%.
+local MAX_SIZE_STEPS = 20
+
+-- Edit Mode frame size steps (5% each from 100%) that keep the frames the same share of the screen. Edit Mode has
+-- no size below 100%, so a shorter screen stays at 100%.
+local function frameSizeSteps()
+	local steps = math.floor((UIParent:GetHeight() / ns.REFERENCE_HEIGHT - 1) * 20 + 0.5)
+	return math.max(0, math.min(MAX_SIZE_STEPS, steps))
+end
 
 local function setValues(system, values)
 	for _, info in ipairs(system.settings or {}) do
@@ -55,6 +65,16 @@ end
 
 local function moveFrames(layout)
 	local db = ns.db
+	-- Positions are saved as a share of the screen and turned into UI units for this screen.
+	local width, height = UIParent:GetWidth(), UIParent:GetHeight()
+	local frameX, frameY = db.frameXPct / 100 * width, db.frameYPct / 100 * height
+	local groupX, groupTop = db.groupXPct / 100 * width, db.groupTopPct / 100 * height
+	local sizeSteps = frameSizeSteps()
+	-- Gaps above the frames grow with them.
+	local grow = 1 + sizeSteps / 20
+	local function frameSize(system)
+		setValues(system, { [Enum.EditModeUnitFrameSetting.FrameSize] = sizeSteps })
+	end
 	local function anchor(point, relativeTo, relativePoint, offsetX, offsetY)
 		return { point = point, relativeTo = relativeTo, relativePoint = relativePoint, offsetX = offsetX, offsetY = offsetY }
 	end
@@ -69,22 +89,23 @@ local function moveFrames(layout)
 	local unitFrame, actionBar, castBar = kinds.UnitFrame, kinds.ActionBar, kinds.CastBar
 	local moves = {
 		[unitFrame] = {
-			[units.Player] = { anchor("BOTTOMRIGHT", "UIParent", "BOTTOM", -db.frameX, db.frameY) },
-			[units.Target] = { anchor("BOTTOMLEFT", "UIParent", "BOTTOM", db.frameX, db.frameY) },
-			[units.Focus] = { anchor("BOTTOMLEFT", "UIParent", "BOTTOM", db.frameX, db.frameY + FOCUS_ABOVE_TARGET) },
+			[units.Player] = { anchor("BOTTOMRIGHT", "UIParent", "BOTTOM", -frameX, frameY), frameSize },
+			[units.Target] = { anchor("BOTTOMLEFT", "UIParent", "BOTTOM", frameX, frameY), frameSize },
+			-- Its size setting only applies to the larger focus frame, so it keeps Blizzard's size.
+			[units.Focus] = { anchor("BOTTOMLEFT", "UIParent", "BOTTOM", frameX, frameY + FOCUS_ABOVE_TARGET * grow) },
 			-- Their default spot on the right edge is now under the quest tracker. They grow upwards from the
 			-- tracker's top-left corner so they stay clear of the bars beside it.
 			[units.Boss] = { anchor("BOTTOMRIGHT", "ObjectiveTrackerFrame", "TOPLEFT", -10, 0) },
 			-- Party and raid are the only frames at the top. Blizzard requires a TOPLEFT anchor for them.
-			[units.Party] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", db.groupX, -db.groupTopGap), function(system)
+			[units.Party] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", groupX, -groupTop), function(system)
 				setValues(system, { [Enum.EditModeUnitFrameSetting.FrameSize] = PARTY_SIZE_STEPS })
 			end },
-			[units.Raid] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", db.groupX, -db.groupTopGap), applyFortyPlayerSettings },
+			[units.Raid] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", groupX, -groupTop), applyFortyPlayerSettings },
 		},
 		-- Buffs and debuffs grow left and down from their top-right corner, above the player frame.
 		[kinds.AuraFrame] = {
-			[auras.BuffFrame] = { anchor("TOPRIGHT", "UIParent", "BOTTOM", -db.frameX, db.frameY + BUFFS_ABOVE_FRAMES) },
-			[auras.DebuffFrame] = { anchor("TOPRIGHT", "UIParent", "BOTTOM", -db.frameX, db.frameY + DEBUFFS_ABOVE_FRAMES) },
+			[auras.BuffFrame] = { anchor("TOPRIGHT", "UIParent", "BOTTOM", -frameX, frameY + BUFFS_ABOVE_FRAMES * grow) },
+			[auras.DebuffFrame] = { anchor("TOPRIGHT", "UIParent", "BOTTOM", -frameX, frameY + DEBUFFS_ABOVE_FRAMES * grow) },
 		},
 		-- The bottom row is split in two around the minimap: the main bar on its left, the micro menu and bags on
 		-- its right, each with two bars stacked on top. The experience bars run underneath.
@@ -95,7 +116,7 @@ local function moveFrames(layout)
 		[kinds.Minimap] = { [0] = { anchor("BOTTOM", "SecondaryStatusTrackingBarContainer", "TOP", 0, BAR_SPACING) } },
 		[kinds.MicroMenu] = { [0] = { anchor("BOTTOMLEFT", "MinimapCluster", "BOTTOMRIGHT", BARS_BESIDE_MINIMAP, 0) } },
 		-- Moved up out of the way of the left bars.
-		[kinds.ChatFrame] = { [0] = { anchor("BOTTOMLEFT", "UIParent", "BOTTOMLEFT", 35, db.frameY) } },
+		[kinds.ChatFrame] = { [0] = { anchor("BOTTOMLEFT", "UIParent", "BOTTOMLEFT", 35, frameY) } },
 		[kinds.ObjectiveTracker] = {
 			-- A raw height of 0 is the 400 minimum; longer quest lists grow upwards from the corner.
 			[0] = { anchor("BOTTOMRIGHT", "UIParent", "BOTTOMRIGHT", -TRACKER_EDGE_GAP, TRACKER_EDGE_GAP), function(tracker)

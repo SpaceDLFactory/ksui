@@ -578,7 +578,7 @@ do
 	local hp = playerHp(env)
 	local button = env.ActionButton1
 	check("addon name", state.loadedName == "KSUI")
-	check("defaults saved", env.KSUIDB.darkUnitFrames == true and env.KSUIDB.frameY == 220)
+	check("defaults saved", env.KSUIDB.darkUnitFrames == true and env.KSUIDB.frameYPct == 18.3)
 	check("player frame art darkened", frame.desaturated and near(frame.color[1], 0.278))
 	check("end cap darkened", env.MainActionBar.EndCaps.LeftEndCap.Texture.desaturated)
 	check("action button darkened", button.NormalTexture.desaturated and near(button.SlotArt.color[3], 0.322))
@@ -625,7 +625,7 @@ do
 	check("checkbox control", state.controls.KSUI_darkUnitFrames.kind == "checkbox")
 	check("color control", state.controls.KSUI_artColor.kind == "color")
 	check("slider control", state.controls.KSUI_cooldownFontSize.kind == "slider")
-	check("slider range", state.controls.KSUI_frameX.options.max == 500 and state.controls.KSUI_frameX.options.formatter == 1)
+	check("slider range", state.controls.KSUI_frameXPct.options.max == 30 and state.controls.KSUI_frameXPct.options.formatter == 1)
 	check("button present", state.button and state.button.buttonClick == ns.ApplyLayout)
 	check("quick buttons first", state.headers[1] == "빠른 실행")
 	check("sections", #state.headers == 7)
@@ -674,8 +674,9 @@ do
 	check("saved toggle honored", frame.desaturated == false)
 	check("saved color honored", near(env.ActionButton1.NormalTexture.color[2], 1))
 	check("saved size honored", state.font[3] == 20)
-	check("saved value not overwritten", env.KSUIDB.frameX == 50)
-	check("missing value defaulted", env.KSUIDB.frameY == 220)
+	check("old position becomes the same share of the reference screen", near(env.KSUIDB.frameXPct, 50 / (1200 * 16 / 9) * 100)
+		and env.KSUIDB.frameX == nil and env.KSUIDB.positionsVersion == 2)
+	check("missing value defaulted", env.KSUIDB.frameYPct == 18.3)
 end
 
 -- Square minimap
@@ -795,8 +796,10 @@ end
 -- Layout
 local function systems(playerX)
 	return {
-		{ system = 3, systemIndex = 1, anchorInfo = { point = "TOPLEFT", offsetX = playerX }, isInDefaultPosition = true },
-		{ system = 3, systemIndex = 2, anchorInfo = { point = "TOPLEFT", offsetX = 250 }, isInDefaultPosition = true },
+		{ system = 3, systemIndex = 1, anchorInfo = { point = "TOPLEFT", offsetX = playerX }, isInDefaultPosition = true,
+			settings = { { setting = 16, value = 0 } } },
+		{ system = 3, systemIndex = 2, anchorInfo = { point = "TOPLEFT", offsetX = 250 }, isInDefaultPosition = true,
+			settings = { { setting = 16, value = 0 } } },
 		{ system = 3, systemIndex = 3, anchorInfo = { point = "CENTER", offsetX = 7 }, isInDefaultPosition = true },
 		{ system = 0, systemIndex = 1, anchorInfo = { point = "BOTTOM", offsetX = 1 }, isInDefaultPosition = false, settings = {
 			{ setting = 6, value = 0 }, { setting = 9, value = 1 },
@@ -856,6 +859,8 @@ end
 local function layoutState(extra)
 	local state = {
 		units = { player = mage }, active = 2, layouts = {},
+		-- A 2000 x 1000 screen turns these shares into round UI units: 130, 220, 20 and 20.
+		screen = { 2000, 1000 }, savedDB = { frameXPct = 6.5, frameYPct = 22, groupXPct = 1, groupTopPct = 2, positionsVersion = 2 },
 		presets = {
 			{ layoutName = "Modern", layoutType = 0, layoutIndex = 0, systems = systems(1) },
 			{ layoutName = "Classic", layoutType = 0, layoutIndex = 1, systems = systems(2) },
@@ -1003,8 +1008,11 @@ end
 do
 	local state = layoutState()
 	local env = boot(state)
-	state.settings.frameX:SetValue(200)
-	state.settings.frameY:SetValue(300)
+	check("frames stay at 100% on a screen shorter than the reference",
+		(function() state.button.buttonClick(); return state.saved.layouts[4].systems[1].settings[1].value == 0 end)())
+	state.reloaded = false
+	state.settings.frameXPct:SetValue(10)
+	state.settings.frameYPct:SetValue(30)
 	check("sliders do not reload by themselves", not state.reloaded)
 	state.button.buttonClick()
 	local player = state.saved.layouts[4].systems[1]
@@ -1662,6 +1670,65 @@ do
 	unitFrame:UpdateAnchors()
 	check("Blizzard look returns when off", bar.bgTexture.file == "Interface\\Tooltips\\Nameplate-Border"
 		and unitFrame.PlayerLevelDiffFrame.alpha == 1)
+end
+
+-- Screen-relative positions and sizes
+do
+	-- Saved UI units from before become shares of the reference screen, so on it the frames land exactly where they were.
+	-- UIParent may not have its real size yet at this point; the mock's 768-tall screen stands for that.
+	local state = layoutState({ screen = { 2133.333, 1200 }, savedDB = { frameX = 130, frameY = 220, groupX = 20, groupTopGap = 20 } })
+	local env = boot(state)
+	local db = env.KSUIDB
+	check("all four old positions converted", db.frameX == nil and db.frameY == nil and db.groupX == nil and db.groupTopGap == nil
+		and near(db.frameYPct, 220 / 1200 * 100) and near(db.groupTopPct, 20 / 1200 * 100))
+	state.button.buttonClick()
+	local player, party = state.saved.layouts[4].systems[1], state.saved.layouts[4].systems[5]
+	check("converted positions land where they were", near(player.anchorInfo.offsetX, -130) and near(player.anchorInfo.offsetY, 220)
+		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20))
+	check("reference screen keeps 100%", player.settings[1].value == 0)
+end
+
+do
+	-- A screen half again as tall in UI units shows everything two thirds the size, so the frames grow to 150%.
+	local state = layoutState({ screen = { 3200, 1800 } })
+	boot(state)
+	state.button.buttonClick()
+	local systems = state.saved.layouts[4].systems
+	local player, target, focus = systems[1], systems[2], systems[3]
+	local buffs = systems[13]
+	check("player and target grow to 150%", player.settings[1].value == 10 and target.settings[1].value == 10)
+	check("gaps above the frames grow too", near(focus.anchorInfo.offsetY, 22 / 100 * 1800 + 110 * 1.5)
+		and near(buffs.anchorInfo.offsetY, 22 / 100 * 1800 + 200 * 1.5))
+	check("positions follow the screen", near(player.anchorInfo.offsetX, -6.5 / 100 * 3200))
+end
+
+do
+	local state = layoutState({ screen = { 6000, 3438 } })
+	boot(state)
+	state.button.buttonClick()
+	check("frame size capped at 200%", state.saved.layouts[4].systems[1].settings[1].value == 20)
+end
+
+do
+	-- Version 1 measured a 1365 x 768 UIParent while loading; its shares are scaled back once and then left alone.
+	local state = layoutState({ screen = { 2133.333, 1200 },
+		savedDB = { frameXPct = 130 / 1365.333 * 100, frameYPct = 220 / 768 * 100, groupXPct = 20 / 1365.333 * 100,
+			groupTopPct = 20 / 768 * 100 } })
+	local env = boot(state)
+	state.button.buttonClick()
+	local player, party = state.saved.layouts[4].systems[1], state.saved.layouts[4].systems[5]
+	check("version 1 shares repaired", near(player.anchorInfo.offsetX, -130) and near(player.anchorInfo.offsetY, 220)
+		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20) and env.KSUIDB.positionsVersion == 2)
+	local frameY = env.KSUIDB.frameYPct
+	local again = layoutState({ savedDB = env.KSUIDB })
+	boot(again)
+	check("repair runs once", again.savedDB.frameYPct == frameY)
+end
+
+do
+	local state = { units = { player = mage } }
+	local env = boot(state)
+	check("fresh install keeps the defaults", env.KSUIDB.frameYPct == 18.3 and env.KSUIDB.positionsVersion == 2)
 end
 
 do

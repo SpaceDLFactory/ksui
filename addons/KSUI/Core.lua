@@ -16,8 +16,35 @@ function ns.ForEachActionButton(callback)
 	end
 end
 
+-- The screen KSUI was tuned on: 4K at the automatic UI scale's floor of 0.64, so 768 / 0.64 = 1200 UI units tall.
+ns.REFERENCE_WIDTH, ns.REFERENCE_HEIGHT = 1200 * 16 / 9, 1200
+local POSITIONS_VERSION = 2
+-- Old UI-unit key, new share key, and the reference length it is a share of.
+local OLD_POSITIONS = {
+	{ "frameX", "frameXPct", ns.REFERENCE_WIDTH }, { "frameY", "frameYPct", ns.REFERENCE_HEIGHT },
+	{ "groupX", "groupXPct", ns.REFERENCE_WIDTH }, { "groupTopGap", "groupTopPct", ns.REFERENCE_HEIGHT },
+}
+
+-- Positions used to be saved in UI units; they become shares of the reference screen, so nothing moves on it.
+-- UIParent is still 1365 x 768 when saved variables load, before the UI scale applies, so nothing is measured then.
+-- Version 1 did measure, which made every share 1200 / 768 times too large; those are scaled back once.
+local function convertPositions(db)
+	local version = db.positionsVersion
+	for _, entry in ipairs(OLD_POSITIONS) do
+		local old, key, length = entry[1], entry[2], entry[3]
+		if db[old] ~= nil and db[key] == nil then
+			db[key] = db[old] / length * 100
+		elseif version == nil and db[key] ~= nil then
+			db[key] = db[key] * 768 / ns.REFERENCE_HEIGHT
+		end
+		db[old] = nil
+	end
+	db.positionsVersion = POSITIONS_VERSION
+end
+
 EventUtil.ContinueOnAddOnLoaded(addonName, function()
 	KSUIDB = KSUIDB or {}
+	convertPositions(KSUIDB)
 	ns.db = KSUIDB
 	ns.RegisterOptions()
 end)
