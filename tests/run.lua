@@ -134,6 +134,7 @@ local function world(state)
 		state.frames = state.frames or {}
 		state.frames[#state.frames + 1] = f
 		function f:RegisterEvent(e) self.registered[e] = true end
+		function f:UnregisterEvent(e) self.registered[e] = nil end
 		function f:RegisterUnitEvent(e, unit)
 			self.registered[e] = true
 			self.units = self.units or {}
@@ -158,6 +159,7 @@ local function world(state)
 			local t = texture()
 			function t:SetText(v) self.text = v end
 			function t:SetFormattedText(fmt, ...) self.format = { fmt, ... } end
+			function t:SetParent(p) self.parent = p end
 			return t
 		end
 		function f:Show() self.shown = true end
@@ -176,8 +178,11 @@ local function world(state)
 		function f:GetParent() return self.parent end
 		function f:SetHeight(h) self.height = h end
 		function f:EnableMouse(v) self.mouse = v end
+		function f:SetFrameLevel(l) self.level = l end
+		function f:GetFrameLevel() return self.level or 1 end
 		function f:IsShown() return self.shown ~= false end
 		function f:SetStatusBarColor(r, g, b) self.color = { r, g, b } end
+		function f:SetClipsChildren(v) self.clips = v end
 		function f:ClearModel() self.modelUnit = nil end
 		function f:SetUnit(u) self.modelUnit = u; self.modelLoads = (self.modelLoads or 0) + 1 end
 		function f:SetPortraitZoom(z) self.zoom = z end
@@ -256,6 +261,7 @@ local function world(state)
 	local function field(u, key, default) local v = state.units[u][key]; if v == nil then return default end; return v end
 	function env.UnitHealth(u) return field(u, "health", 80) end
 	function env.UnitHealthMax(u) return field(u, "maxHealth", 100) end
+	function env.UnitGetTotalAbsorbs(u) return field(u, "absorb", 0) end
 	function env.UnitHealthPercent(u, predicted, curve)
 		assert(predicted == true and curve == env.CurveConstants.ScaleTo100)
 		local h = field(u, "health", 80)
@@ -346,6 +352,26 @@ local function world(state)
 	function env.IsInGroup() return state.group == true end
 	function env.UnitCanAttack(a, b) assert(a == "player" and b == "target"); return state.units.target and state.units.target.hostile end
 	env.BuffBarCooldownViewer = { name = "BuffBarCooldownViewer" }
+	-- state.viewerSpells = { Essential = { spellID or false, ... }, Utility = {...} }; false is an icon with no spell.
+	state.viewerSpells = state.viewerSpells or { Essential = { 20271, 853 }, Utility = { 642 } }
+	state.viewerItems = {}
+	for _, kind in ipairs({ "Essential", "Utility" }) do
+		local viewer = { RefreshLayout = function() end, RefreshData = function() end, visibleSetting = 0 }
+		function viewer:GetItemFrames()
+			local items = {}
+			for i, spell in ipairs(state.viewerSpells[kind]) do
+				local key = kind .. i
+				state.viewerItems[key] = state.viewerItems[key] or { GetFrameLevel = function() return 3 end }
+				local item = state.viewerItems[key]
+				item.GetBaseSpellID = function() return spell or nil end
+				items[#items + 1] = item
+			end
+			return items
+		end
+		env[kind .. "CooldownViewer"] = viewer
+	end
+	env.GameTooltip = {}
+	function env.GameTooltip_Hide() end
 	-- state.quest = { map, player = {x, y} or nil, facing, supertracked, waypoint = {x, y}, onMap = {...}, log = {...} }
 	-- World positions here are the map position scaled: north is -y on the map, west is -x.
 	state.quest = state.quest or { map = 1420, player = { 0.5, 0.5 }, facing = 0, supertracked = 516,
@@ -441,9 +467,15 @@ local function world(state)
 	state.log = {}
 	function env.print(message) state.printed = message; state.log[#state.log + 1] = message end
 	function env.ReloadUI() state.reloaded = true end
+	env.C_AddOns = { GetAddOnMetadata = function(_, key) return key == "Version" and "0.11.0" or nil end }
 	env.SlashCmdList = {}
 	env.Enum = {
 		LuaCurveType = { Linear = 0, Step = 1 },
+		EditModeCooldownViewerSetting = { VisibleSetting = 6 },
+		EditModeMinimapSetting = { HeaderUnderneath = 0 },
+		EditModeMicroMenuSetting = { Size = 2 },
+		EditModeBagsSetting = { Size = 2 },
+		CooldownViewerVisibleSetting = { Always = 0, InCombat = 1, Hidden = 2 },
 		EditModeSystem = { ActionBar = 0, CastBar = 1, Minimap = 2, UnitFrame = 3, AuraFrame = 6, ChatFrame = 8, HudTooltip = 11,
 			ObjectiveTracker = 12, MicroMenu = 13, Bags = 14, StatusTrackingBar = 15, DurabilityFrame = 16, CooldownViewer = 20, VehicleLeaveButton = 9, GroupFinder = 27,
 			MainActionBarEndCap = 26, DamageMeter = 23 },
@@ -470,10 +502,10 @@ local function world(state)
 	env.Constants = { EditModeConsts = { EditModeMaxLayoutsPerType = 2 },
 		CharacterNameSeparatorConsts = { CHARACTERNAME_SURNAME_SEPARATOR = " " } }
 	env.EditModePresetLayoutManager = {
-		GetCopyOfPresetLayouts = function() return copy(state.presets) end,
+		GetCopyOfPresetLayouts = function() return copy(state.presets or {}) end,
 	}
 	env.C_EditMode = {
-		GetLayouts = function() return { activeLayout = state.active, layouts = copy(state.layouts) } end,
+		GetLayouts = function() return { activeLayout = state.active or 0, layouts = copy(state.layouts or {}) } end,
 		SaveLayouts = function(info) state.saved = info end,
 		SetActiveLayout = function(index) state.activated = index end,
 	}
@@ -503,11 +535,22 @@ local function world(state)
 	function spellbar:SetAlpha(a) self.alpha = a end
 	function env.CreateColor(r, g, b) return { r = r, g = g, b = b } end
 	function env.GetTime() return 100 end
-	env.TargetFrame = {
+	-- Blizzard's target aura row: Blizzard puts it under its own art.
+	local function withAuras(f)
+		f.auras = { points = {}, mirrored = false }
+		function f.auras:ClearAllPoints() self.points = {} end
+		function f.auras:SetPoint(...) self.points[#self.points + 1] = { ... } end
+		function f.auras:IsProtected() return false end
+		function f.auras:IsFlowLayoutMirroredVertically() return self.mirrored end
+		function f:GetAuraContainer() return self.auras end
+		function f:AnchorAuraContainer() self.auras:ClearAllPoints(); self.auras:SetPoint("TOPLEFT", "blizzard art") end
+		return f
+	end
+	env.TargetFrame = withAuras({
 		spellbar = spellbar,
 		TargetFrameContainer = alphaFrame({ FrameTexture = texture() }),
 		TargetFrameContent = { TargetFrameContentMain = alphaFrame({ HealthBarsContainer = { HealthBar = bar() } }) },
-	}
+	})
 	env.MainActionBar = alphaFrame({
 		EndCaps = { LeftEndCap = { Texture = texture() }, RightEndCap = { Texture = texture() } },
 	})
@@ -515,10 +558,10 @@ local function world(state)
 	for _, name in ipairs({ "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft", "MultiBar7" }) do
 		env[name] = alphaFrame()
 	end
-	env.FocusFrame = {
+	env.FocusFrame = withAuras({
 		TargetFrameContainer = alphaFrame({ FrameTexture = texture() }),
 		TargetFrameContent = { TargetFrameContentMain = alphaFrame() },
-	}
+	})
 	env.MAX_BOSS_FRAMES = 5
 	for i = 1, env.MAX_BOSS_FRAMES do
 		env["Boss" .. i .. "TargetFrame"] = { TargetFrameContainer = { FrameTexture = texture() } }
@@ -853,7 +896,7 @@ local function systems(playerX)
 		} },
 		{ system = 6, systemIndex = 1, anchorInfo = { point = "TOPRIGHT" }, isInDefaultPosition = true },
 		{ system = 6, systemIndex = 2, anchorInfo = { point = "TOPRIGHT" }, isInDefaultPosition = true },
-		{ system = 2, anchorInfo = { point = "TOPRIGHT" }, isInDefaultPosition = true },
+		{ system = 2, anchorInfo = { point = "TOPRIGHT" }, isInDefaultPosition = true, settings = { { setting = 0, value = 0 } } },
 		{ system = 12, anchorInfo = { point = "TOPRIGHT" }, isInDefaultPosition = true, settings = {
 			{ setting = 0, value = 40 }, { setting = 1, value = 0 },
 		} },
@@ -864,12 +907,15 @@ local function systems(playerX)
 		{ system = 0, systemIndex = 3, anchorInfo = { point = "BOTTOM" }, isInDefaultPosition = true, settings = {
 			{ setting = 3, value = 5 }, { setting = 9, value = 1 },
 		} },
-		{ system = 13, anchorInfo = { point = "BOTTOM", offsetX = 116.5 }, isInDefaultPosition = true },
-		{ system = 14, anchorInfo = { point = "BOTTOMLEFT", relativeTo = "MicroMenuContainer" }, isInDefaultPosition = true },
+		{ system = 13, anchorInfo = { point = "BOTTOM", offsetX = 116.5 }, isInDefaultPosition = true,
+			settings = { { setting = 2, value = 6 } } },
+		{ system = 14, anchorInfo = { point = "BOTTOMLEFT", relativeTo = "MicroMenuContainer" }, isInDefaultPosition = true,
+			settings = { { setting = 2, value = 5 } } },
 		{ system = 15, systemIndex = 1, anchorInfo = { point = "BOTTOM" }, isInDefaultPosition = true },
 		{ system = 15, systemIndex = 2, anchorInfo = { point = "BOTTOM", offsetY = 17 }, isInDefaultPosition = true },
 		{ system = 8, anchorInfo = { point = "BOTTOMLEFT", offsetX = 35, offsetY = 145 }, isInDefaultPosition = true },
-		{ system = 20, systemIndex = 1, anchorInfo = { point = "BOTTOM", offsetY = 310 }, isInDefaultPosition = true },
+		{ system = 20, systemIndex = 1, anchorInfo = { point = "BOTTOM", offsetY = 310 }, isInDefaultPosition = true,
+			settings = { { setting = 6, value = 1 } } },
 		{ system = 20, systemIndex = 2, anchorInfo = { point = "BOTTOM", offsetY = 240 }, isInDefaultPosition = true },
 		{ system = 20, systemIndex = 3, anchorInfo = { point = "BOTTOM", offsetY = 370 }, isInDefaultPosition = true },
 		{ system = 20, systemIndex = 4, anchorInfo = { point = "BOTTOM", offsetX = 420, offsetY = 430 }, isInDefaultPosition = true },
@@ -980,14 +1026,28 @@ do
 		and cast.anchorInfo.relativePoint == "TOP" and cast.anchorInfo.offsetX == 0 and cast.anchorInfo.offsetY == 6 and not cast.isInDefaultPosition)
 	check("cast bar unlocked from player frame", values(cast)[1] == 0 and values(cast)[0] == 3)
 	local buffs, debuffs = layout.systems[13], layout.systems[14]
-	check("buffs above the player frame", buffs.anchorInfo.point == "TOPRIGHT" and buffs.anchorInfo.relativePoint == "BOTTOM"
-		and buffs.anchorInfo.offsetX == -130 and buffs.anchorInfo.offsetY == 420 and not buffs.isInDefaultPosition)
-	check("debuffs above the buffs", debuffs.anchorInfo.point == "TOPRIGHT" and debuffs.anchorInfo.offsetX == -130
-		and debuffs.anchorInfo.offsetY == 520 and not debuffs.isInDefaultPosition)
+	for _, sys in ipairs(layout.systems) do
+		if sys.system == 20 and sys.systemIndex == 1 then
+			check("cooldown spell row set to always show", sys.settings[1].value == 0)
+		end
+	end
+	check("buffs left of the cooldown manager", buffs.anchorInfo.point == "TOPRIGHT"
+		and buffs.anchorInfo.relativeTo == "EssentialCooldownViewer" and buffs.anchorInfo.relativePoint == "TOPLEFT"
+		and buffs.anchorInfo.offsetX == -10 and buffs.anchorInfo.offsetY == 0 and not buffs.isInDefaultPosition)
+	check("debuffs above the buffs", debuffs.anchorInfo.relativeTo == "EssentialCooldownViewer" and debuffs.anchorInfo.offsetX == -10
+		and debuffs.anchorInfo.offsetY == 100 and not debuffs.isInDefaultPosition)
 	local minimap, tracker, tooltip = layout.systems[15], layout.systems[16], layout.systems[17]
 	check("minimap sits on the experience bars", minimap.anchorInfo.point == "BOTTOM"
 		and minimap.anchorInfo.relativeTo == "SecondaryStatusTrackingBarContainer" and minimap.anchorInfo.relativePoint == "TOP"
 		and minimap.anchorInfo.offsetX == 0 and minimap.anchorInfo.offsetY == 4 and not minimap.isInDefaultPosition)
+	check("zone name and calendar under the minimap", minimap.settings[1].value == 1)
+	for _, sys in ipairs(layout.systems) do
+		if sys.system == 13 then check("micro menu at 75%", sys.settings[1].value == 1) end
+		if sys.system == 14 then
+			check("bags at 75%, left where Blizzard puts them", sys.settings[1].value == 0
+				and sys.anchorInfo.relativeTo == "MicroMenuContainer" and sys.isInDefaultPosition)
+		end
+	end
 	local s = layout.systems
 	local mainBar, bar2, bar3, micro, bags, xp1, xp2, chat = s[4], s[18], s[19], s[20], s[21], s[22], s[23], s[24]
 	check("main bar left of the minimap", mainBar.anchorInfo.point == "BOTTOMRIGHT" and mainBar.anchorInfo.relativeTo == "MinimapCluster"
@@ -1099,6 +1159,34 @@ do
 	} })
 	runLayout(state)
 	check("replacing own layout at the limit works", state.saved ~= nil and #state.saved.layouts == 5)
+end
+
+-- Auto apply after an update
+do
+	local layouts = { { layoutName = "KSUI", layoutType = 1, systems = systems(5) } }
+	local state = layoutState({ active = 4, layouts = layouts })
+	state.savedDB.layoutVersion = "0.10.0"
+	local env = boot(state)
+	check("nothing before Edit Mode has the layouts", not state.reloaded)
+	fire(env, "EDIT_MODE_LAYOUTS_UPDATED")
+	for _, timer in ipairs(state.timers) do timer() end
+	check("update re-applies the active KSUI layout", state.reloaded and state.saved ~= nil
+		and state.saved.layouts[4].layoutName == "KSUI" and state.savedDB.layoutVersion == "0.11.0")
+
+	state = layoutState({ active = 4, layouts = layouts })
+	state.savedDB.layoutVersion = "0.11.0"
+	fire(boot(state), "EDIT_MODE_LAYOUTS_UPDATED")
+	for _, timer in ipairs(state.timers) do timer() end
+	check("same version leaves it alone", not state.reloaded and state.saved == nil)
+
+	state = layoutState({ active = 4, layouts = { { layoutName = "Mine", layoutType = 1, systems = systems(5) } } })
+	fire(boot(state), "EDIT_MODE_LAYOUTS_UPDATED")
+	for _, timer in ipairs(state.timers) do timer() end
+	check("another active layout is left alone", not state.reloaded and state.saved == nil)
+	check("a manual apply records the version", (function()
+		runLayout(state)
+		return state.savedDB.layoutVersion == "0.11.0"
+	end)())
 end
 
 -- Range color
@@ -1515,6 +1603,64 @@ do
 	check("nearest guiding off leaves the choice alone", state.quest.supertracked == 516)
 end
 
+-- Target auras
+do
+	local state = { units = { player = mage } }
+	local env = boot(state)
+	local overlay
+	for _, f in ipairs(state.frames) do
+		if f.parent == env.TargetFrame and f.template == "BackdropTemplate" then overlay = f end
+	end
+	local p = env.TargetFrame.auras.points
+	check("target auras start under our frame", #p == 1 and p[1][1] == "TOPLEFT" and p[1][2] == overlay
+		and p[1][3] == "BOTTOMLEFT" and p[1][4] == 0 and p[1][5] == -3)
+	env.TargetFrame.auras.mirrored = true
+	env.TargetFrame:AnchorAuraContainer()
+	p = env.TargetFrame.auras.points
+	check("buffs on top go above it", #p == 1 and p[1][1] == "BOTTOMLEFT" and p[1][3] == "TOPLEFT" and p[1][5] == 3)
+	state.settings.customUnitFrames:SetValue(false)
+	check("option off gives Blizzard its spot back", env.TargetFrame.auras.points[1][2] == "blizzard art"
+		and env.FocusFrame.auras.points[1][2] == "blizzard art")
+end
+
+-- Clickable cooldown manager
+local function castButton(state, item)
+	for _, f in ipairs(state.frames) do
+		if f.parent == item and f.template == "SecureActionButtonTemplate" then return f end
+	end
+end
+
+do
+	local state = { units = { player = mage } }
+	local env = boot(state)
+	local judge = castButton(state, state.viewerItems.Essential1)
+	check("a secure spell button on each icon", judge and judge.attributes.type == "spell" and judge.attributes.spell == 20271
+		and castButton(state, state.viewerItems.Utility1).attributes.spell == 642 and judge.shown == true)
+	check("casts on press or release, as the key-down option says", judge.clicks[1] == "AnyUp" and judge.clicks[2] == "AnyDown")
+
+	state.viewerSpells.Essential = { 31884, 853 }
+	state.combat = true
+	env.EssentialCooldownViewer:RefreshLayout()
+	check("left alone in combat", judge.attributes.spell == 20271)
+	state.combat = false
+	fire(env, "PLAYER_REGEN_ENABLED")
+	check("caught up after combat, reusing the icon's button", judge.attributes.spell == 31884
+		and castButton(state, state.viewerItems.Essential1) == judge)
+
+	state.viewerSpells.Essential = { 20271, 853 }
+	env.EssentialCooldownViewer:RefreshData()
+	check("same icons with new cooldowns are caught up", judge.attributes.spell == 20271)
+	env.EssentialCooldownViewer.visibleSetting = 1
+	env.EssentialCooldownViewer:RefreshLayout()
+	check("a row shown only in combat gets no buttons", judge.shown == false)
+	env.EssentialCooldownViewer.visibleSetting = 0
+	state.viewerSpells.Essential = { false, 853 }
+	env.EssentialCooldownViewer:RefreshLayout()
+	check("an icon without a spell gets no button", judge.shown == false)
+	state.settings.cooldownCast:SetValue(false)
+	check("option off hides the buttons", castButton(state, state.viewerItems.Essential2).shown == false)
+end
+
 -- Alerts
 do
 	local state = { units = { player = mage } }
@@ -1569,6 +1715,19 @@ do
 	check("player portrait on the left", player.portrait.point[1] == "TOPLEFT")
 	check("target portrait on the right", target.portrait.point[1] == "TOPRIGHT")
 	check("player health filled", player.health.range[2] == 100 and player.health.barValue == 80)
+	check("no shield, no shield number", player.absorb.barValue == 0 and player.health.absorbValue.shown == false)
+	check("shield bar starts where the health fill ends, clipped by the bar",
+		player.absorb.points.TOPLEFT[2] == player.health.fill and player.absorb.points.TOPLEFT[3] == "TOPRIGHT"
+		and player.health.clips == true)
+	player.health.scripts.OnSizeChanged(player.health, 150)
+	check("shield bar as wide as the health bar", player.absorb.width == 150)
+	local holder = player.health.value.parent
+	check("bar text drawn above the shield bar", holder and holder.level > player.absorb:GetFrameLevel()
+		and player.health.name.parent == holder and player.health.absorbValue.parent == holder)
+	state.units.player.absorb = 1500
+	fire(env, "UNIT_ABSORB_AMOUNT_CHANGED", "player")
+	check("shield on the health scale with its number", player.absorb.range[2] == 100 and player.absorb.barValue == 1500
+		and player.health.absorbValue.shown == true and player.health.absorbValue.format[2] == "1500")
 	check("health text with percent", player.health.value.format[2] == "80" and player.health.value.format[3] == 80)
 	check("player class colored", player.health.color[1] == 0.2)
 	check("bar text outlined at its own size", player.health.name.font[3] == "OUTLINE" and player.health.name.font[2] == 10
@@ -1640,6 +1799,9 @@ do
 	local frame = unitFrame(state, "target")
 	check("secret health reaches the bar", frame.health.barValue == SECRET and frame.health.range[2] == SECRET)
 	check("secret health reaches the text", frame.health.value.format[2] == SECRET and frame.health.value.format[3] == SECRET)
+	target.absorb = SECRET
+	fire(env, "UNIT_ABSORB_AMOUNT_CHANGED", "target")
+	check("secret shield reaches only the bar", frame.absorb.barValue == SECRET and frame.health.absorbValue.shown == false)
 	check("secret power type falls back to mana", frame.power.color[3] == 1)
 	check("secret power decides the number's alpha itself", frame.power.value.alpha == SECRET)
 	check("secret name and level pass through", frame.health.name.format[2] == SECRET and frame.health.name.format[3] == SECRET
@@ -1782,7 +1944,7 @@ do
 	local buffs = systems[13]
 	check("player and target grow to 150%", player.settings[1].value == 10 and target.settings[1].value == 10)
 	check("gaps above the frames grow too", near(focus.anchorInfo.offsetY, 22 / 100 * 1800 + 110 * 1.5)
-		and near(buffs.anchorInfo.offsetY, 22 / 100 * 1800 + 200 * 1.5))
+		and near(systems[14].anchorInfo.offsetY, 100 * 1.5))
 	check("positions follow the screen", near(player.anchorInfo.offsetX, -6.5 / 100 * 3200))
 end
 
