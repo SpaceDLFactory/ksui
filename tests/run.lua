@@ -34,6 +34,8 @@ local function texture()
 	function t:SetJustifyH(j) self.justify = j end
 	function t:SetWordWrap(v) self.wrap = v end
 	function t:SetWidth(w) self.width = w end
+	function t:SetAtlas(a) self.atlas = a end
+	function t:SetRotation(r) self.rotation = r end
 	function t:SetTextColor(r, g, b) self.textColor = { r, g, b } end
 	function t:ClearAllPoints() self.points = 0 end
 	function t:SetDrawLayer(l) self.layer = l end
@@ -344,6 +346,30 @@ local function world(state)
 	function env.IsInGroup() return state.group == true end
 	function env.UnitCanAttack(a, b) assert(a == "player" and b == "target"); return state.units.target and state.units.target.hostile end
 	env.BuffBarCooldownViewer = { name = "BuffBarCooldownViewer" }
+	-- state.quest = { map, player = {x, y} or nil, facing, supertracked, waypoint = {x, y}, onMap = {...}, log = {...} }
+	-- World positions here are the map position scaled: north is -y on the map, west is -x.
+	state.quest = state.quest or { map = 1420, player = { 0.5, 0.5 }, facing = 0, supertracked = 516,
+		onMap = { { questID = 516, x = 0.5, y = 0.4 } }, log = {} }
+	local function vec(x, y) return { x = x, y = y, GetXY = function(self) return self.x, self.y end } end
+	env.CreateVector2D = vec
+	env.C_Map = { GetBestMapForUnit = function() return state.quest.map end,
+		GetPlayerMapPosition = function() local p = state.quest.player; return p and vec(p[1], p[2]) end,
+		GetMapWorldSize = function() return 1000, 1000 end }
+	function env.GetPlayerFacing() return state.quest.facing end
+	env.C_SuperTrack = { GetSuperTrackedQuestID = function() return state.quest.supertracked end,
+		SetSuperTrackedQuestID = function(id) state.quest.supertracked = id end }
+	env.C_Navigation = { GetDistance = function() return 2066.87 end }
+	env.C_QuestLog = {
+		GetNextWaypointForMap = function() local w = state.quest.waypoint; if w then return w[1], w[2] end end,
+		GetQuestsOnMap = function() return state.quest.onMap end,
+		GetNumQuestLogEntries = function() return #state.quest.log end,
+		GetInfo = function(i) return state.quest.log[i] end,
+		GetDistanceSqToQuest = function(id)
+			for _, q in ipairs(state.quest.log) do if q.questID == id then return q.distanceSq, q.onContinent end end
+		end,
+	}
+	state.timers = {}
+	env.C_Timer = { After = function(_, fn) state.timers[#state.timers + 1] = fn end }
 	env.AlertFrame = { ClearAllPoints = function(self) self.point = nil end, SetPoint = function(self, ...) self.point = { ... } end }
 	env.KSUIDamageMeter = { name = "KSUIDamageMeter", IsShown = function() return state.meterShown ~= false end }
 	function env.GameTooltip_SetDefaultAnchor() end
@@ -1440,6 +1466,53 @@ do
 	tracking[#tracking + 1] = { spellID = 43308, active = false }
 	fire(env, "LEARNED_SPELL_IN_SKILL_LINE")
 	check("newly learned fishing tracked", tracking[6].active == true)
+end
+
+-- Quest guide
+do
+	local state = { units = { player = mage } }
+	local env = boot(state)
+	local guide
+	for _, f in ipairs(state.frames) do
+		if f.parent == env.Minimap and f.scripts.OnUpdate then guide = f end
+	end
+	guide.scripts.OnUpdate(guide, 1)
+	check("arrow points straight ahead at a quest due north", near(guide.arrow.rotation, 0) and guide.arrow.shown ~= false
+		and guide.distance.format[2] == 2066.87)
+	state.quest.facing = math.pi / 2
+	guide.scripts.OnUpdate(guide, 1)
+	check("facing west turns the arrow right", near(guide.arrow.rotation, -math.pi / 2))
+	state.quest.facing = 0
+	state.quest.waypoint = { 0.4, 0.5 }
+	guide.scripts.OnUpdate(guide, 1)
+	check("a waypoint to the west is to the left", near(guide.arrow.rotation, math.pi / 2))
+	state.quest.player = nil
+	guide.scripts.OnUpdate(guide, 1)
+	-- Measured in game: quest 451 south-southwest, facing south-southeast; the arrow belongs about 32 degrees clockwise.
+	state.quest.waypoint = nil
+	state.quest.player = { 0.50326311588287, 0.71181857585907 }
+	state.quest.onMap = { { questID = 516, x = 0.46502554416656, y = 0.86224073171616 } }
+	state.quest.facing = 3.457793712616
+	guide.scripts.OnUpdate(guide, 1)
+	check("measured case points 32 degrees clockwise", math.abs(math.deg(guide.arrow.rotation) + 32.4) < 0.5)
+	state.quest.player = nil
+	guide.scripts.OnUpdate(guide, 1)
+	check("arrow hides without a player position", guide.arrow.shown == false and guide.distance.shown == false)
+	state.settings.questArrow:SetValue(false)
+	check("arrow off", guide.shown == false)
+
+	state.quest.log = { { isHeader = true }, { questID = 1, distanceSq = 900 , onContinent = true },
+		{ questID = 2, distanceSq = 100, onContinent = true }, { questID = 3, distanceSq = 1, onContinent = false } }
+	fire(env, "QUEST_LOG_UPDATE")
+	fire(env, "QUEST_ACCEPTED")
+	check("quest events wait for one settled check", #state.timers == 1)
+	state.timers[1]()
+	check("nearest quest on this continent guided", state.quest.supertracked == 2)
+	state.settings.questNearest:SetValue(false)
+	state.quest.supertracked = 516
+	fire(env, "QUEST_LOG_UPDATE")
+	state.timers[2]()
+	check("nearest guiding off leaves the choice alone", state.quest.supertracked == 516)
 end
 
 -- Alerts

@@ -34,6 +34,8 @@ local OPTIONS = {
 	{ key = "buffCheck", label = "준비 확인 때 빠진 버프 알림", default = true },
 	{ key = "gearSuggest", label = "더 좋은 장비가 생기면 알림", default = true },
 	{ key = "gatherTracking", label = "전문 기술 채집 추적 자동 켜기", default = true, refresh = "RefreshTracking" },
+	{ key = "questArrow", label = "미니맵에 퀘스트 길안내 화살표", default = true, refresh = "RefreshQuestGuide" },
+	{ key = "questNearest", label = "가장 가까운 퀘스트로 자동 길안내", default = true, refresh = "RefreshQuestNearest" },
 	{ key = "chatTimestamps", label = "채팅에 시간 표시", default = true, refresh = "RefreshCVars" },
 	{ header = "프레임 위치" },
 	-- Shares of the screen, so a different screen size or UI scale keeps the same arrangement. The defaults are the
