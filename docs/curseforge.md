@@ -31,9 +31,13 @@ It is built on Blizzard's own frames, so it keeps working under instance and rai
 
 ## Usage
 
-- Settings: `/ksui` or Options > AddOns > 검성UI. Every feature has its own toggle.
+- Settings: `/ksui` or Options > AddOns > 검성UI. Every feature has its own toggle, and the top of the panel has buttons to apply the layout and reload the UI.
 - Reset the damage meter: the reset button on its title, or `/ksui reset`.
 - Apply the layout: the button at the top of the settings, or `/ksui layout` (creates the `KSUI` Edit Mode layout and reloads the UI).
+
+## Works well with
+
+- **Questie** (Forever edition) for quest givers and objectives on the map and minimap. Install both `Questie` and `QuestieDB`.
 
 ## Source
 
@@ -61,9 +65,13 @@ WoW Forever(인터페이스 16001)용 오픈소스 UI입니다. 기본 UI를 어
 
 ## 사용법
 
-- 설정: `/ksui` 또는 설정 > 애드온 > 검성UI. 모든 기능을 하나씩 켜고 끌 수 있습니다.
+- 설정: `/ksui` 또는 설정 > 애드온 > 검성UI. 모든 기능을 하나씩 켜고 끌 수 있고, 맨 위에 화면 배치 적용과 UI 다시 불러오기 버튼이 있습니다.
 - 딜미터 초기화: 딜미터 제목의 `초기화` 버튼 또는 `/ksui reset`
 - 화면 배치 적용: 설정 맨 위 `화면 배치 적용` 버튼 또는 `/ksui layout` (편집 모드 레이아웃 `KSUI`를 새로 만들고 UI를 다시 불러옵니다.)
+
+## 같이 쓰면 좋은 애드온
+
+- **Questie** (Forever판): 퀘스트 주는 NPC와 목표 위치를 지도·미니맵에 표시합니다. `Questie`와 `QuestieDB`를 같이 설치하세요.
 
 ## 소스와 문의
 
