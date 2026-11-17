@@ -14,6 +14,8 @@ local POWER_HEIGHT = 12
 local GAP = 2
 local FLAT = "Interface\\ChatFrame\\ChatFrameBackground"
 local HEALTH_GREEN = { 0.1, 0.8, 0.1 }
+-- Shields as a pale blue stretch past the health, like Blizzard's raid frames.
+local ABSORB_COLOR = { 0.55, 0.85, 1, 0.7 }
 -- Turns a power share into the power number's alpha: hidden at nothing, shown at anything more. Going through a curve
 -- works when the power is secret, which it is for many units outside your group.
 local POWER_TEXT_ALPHA = C_CurveUtil.CreateCurve()
@@ -80,6 +82,30 @@ local function build(blizzard, unit, portraitRight, width, height, parts)
 	frame.health.name:SetWordWrap(false)
 	frame.health.value:SetPoint("BOTTOM" .. far, -4 * inward, 4)
 
+	-- Absorbs can be secret, so their length can't be worked out here. The bar instead starts where the health fill
+	-- ends and is as wide as the health bar on the same scale, so the client draws the right length; whatever runs
+	-- past a full bar is clipped.
+	frame.health:SetClipsChildren(true)
+	frame.absorb = CreateFrame("StatusBar", nil, frame.health)
+	frame.absorb:SetStatusBarTexture(FLAT)
+	frame.absorb:SetStatusBarColor(ABSORB_COLOR[1], ABSORB_COLOR[2], ABSORB_COLOR[3], ABSORB_COLOR[4])
+	local fill = frame.health:GetStatusBarTexture()
+	frame.absorb:SetPoint("TOPLEFT", fill, "TOPRIGHT")
+	frame.absorb:SetPoint("BOTTOMLEFT", fill, "BOTTOMRIGHT")
+	frame.health:SetScript("OnSizeChanged", function(_, width)
+		frame.absorb:SetWidth(width)
+	end)
+	frame.health.absorbValue = outlinedText(frame.health)
+	frame.health.absorbValue:SetPoint("BOTTOM" .. far, frame.health.value, "BOTTOM" .. near, -6 * inward, 0)
+	frame.health.absorbValue:SetTextColor(ABSORB_COLOR[1], ABSORB_COLOR[2], ABSORB_COLOR[3])
+	-- The shield bar is a child frame, so it would draw over the bar's text; the text moves to a frame above it.
+	local texts = CreateFrame("Frame", nil, frame.health)
+	texts:SetAllPoints()
+	texts:SetFrameLevel(frame.absorb:GetFrameLevel() + 1)
+	for _, text in ipairs({ frame.health.name, frame.health.value, frame.health.absorbValue }) do
+		text:SetParent(texts)
+	end
+
 	frame.power = statusBar(frame)
 	frame.power:SetPoint("TOP" .. near, frame.health, "BOTTOM" .. near, 0, -GAP)
 	frame.power:SetPoint("BOTTOM" .. far, frame, "BOTTOM" .. far, -inward, 1)
@@ -89,11 +115,25 @@ local function build(blizzard, unit, portraitRight, width, height, parts)
 	return frame
 end
 
+local function updateAbsorb(frame)
+	local unit = frame.unit
+	local absorb = UnitGetTotalAbsorbs(unit)
+	frame.absorb:SetMinMaxValues(0, UnitHealthMax(unit))
+	frame.absorb:SetValue(absorb)
+	-- A secret amount can't be checked for zero, so only the bar shows it then.
+	local readable = not issecretvalue(absorb) and absorb > 0
+	frame.health.absorbValue:SetShown(readable)
+	if readable then
+		frame.health.absorbValue:SetFormattedText("+%s", AbbreviateNumbers(absorb))
+	end
+end
+
 local function updateHealth(frame)
 	local unit = frame.unit
 	local health = UnitHealth(unit)
 	frame.health:SetMinMaxValues(0, UnitHealthMax(unit))
 	frame.health:SetValue(health)
+	updateAbsorb(frame)
 	if ns.db.healthPercent then
 		frame.health.value:SetFormattedText("%s  %.0f%%", AbbreviateNumbers(health),
 			UnitHealthPercent(unit, true, CurveConstants.ScaleTo100))
@@ -168,7 +208,7 @@ local function updateAll(frame)
 end
 
 local UPDATES = {
-	UNIT_HEALTH = updateHealth, UNIT_MAXHEALTH = updateHealth,
+	UNIT_HEALTH = updateHealth, UNIT_MAXHEALTH = updateHealth, UNIT_ABSORB_AMOUNT_CHANGED = updateAbsorb,
 	UNIT_POWER_UPDATE = updatePower, UNIT_MAXPOWER = updatePower, UNIT_DISPLAYPOWER = updatePower,
 	UNIT_NAME_UPDATE = updateName, UNIT_LEVEL = updateName, PLAYER_LEVEL_CHANGED = updateName,
 	UNIT_FACTION = updateColor,
@@ -261,14 +301,42 @@ local function attachPartyFrames()
 	end
 end
 
+-- Blizzard hangs target auras under its own art, which sits lower and further left than ours, so they would start off
+-- our left edge and cover the power bar. They go right under ours instead, or right above when buffs go on top.
+local AURAS_GAP = 3
+
+local function placeAuras(blizzard, frame)
+	local auras = blizzard:GetAuraContainer()
+	if not ns.db.customUnitFrames or (InCombatLockdown() and auras:IsProtected()) then
+		return
+	end
+	auras:ClearAllPoints()
+	if auras:IsFlowLayoutMirroredVertically() then
+		auras:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", 0, AURAS_GAP)
+	else
+		auras:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 0, -AURAS_GAP)
+	end
+end
+
+local function followAuras(blizzard, frame)
+	hooksecurefunc(blizzard, "AnchorAuraContainer", function()
+		placeAuras(blizzard, frame)
+	end)
+	placeAuras(blizzard, frame)
+end
+
 function ns.InitUnitFrames()
 	-- Your model may not be loaded yet at login.
 	-- UNIT_LEVEL does not cover your own level; Blizzard_UnitFrame/Mainline/PlayerFrame.lua listens to this instead.
 	local player = build(PlayerFrame, "player", false, WIDTH, HEIGHT,
 		{ PlayerFrame.PlayerFrameContainer, PlayerFrame.PlayerFrameContent.PlayerFrameContentMain })
 	listen(player, "PLAYER_ENTERING_WORLD"):RegisterEvent("PLAYER_LEVEL_CHANGED")
-	listen(build(TargetFrame, "target", true, WIDTH, HEIGHT, targetParts(TargetFrame)), "PLAYER_TARGET_CHANGED")
-	listen(build(FocusFrame, "focus", true, WIDTH, HEIGHT, targetParts(FocusFrame)), "PLAYER_FOCUS_CHANGED")
+	local target = build(TargetFrame, "target", true, WIDTH, HEIGHT, targetParts(TargetFrame))
+	listen(target, "PLAYER_TARGET_CHANGED")
+	followAuras(TargetFrame, target)
+	local focus = build(FocusFrame, "focus", true, WIDTH, HEIGHT, targetParts(FocusFrame))
+	listen(focus, "PLAYER_FOCUS_CHANGED")
+	followAuras(FocusFrame, focus)
 	hooksecurefunc(PartyFrame, "InitializePartyMemberFrames", function()
 		attachPartyFrames()
 		ns.RefreshUnitFrames()
@@ -296,6 +364,11 @@ function ns.RefreshUnitFrames()
 		if custom then
 			updateAll(frame)
 		end
+	end
+	-- Blizzard's own anchoring puts the auras back when the option is off; the hook moves them when it's on.
+	if not InCombatLockdown() then
+		TargetFrame:AnchorAuraContainer()
+		FocusFrame:AnchorAuraContainer()
 	end
 end
 
