@@ -1,4 +1,4 @@
-local _, ns = ...
+local addonName, ns = ...
 
 local LAYOUT_NAME = "KSUI"
 local FOCUS_ABOVE_TARGET = 110
@@ -120,8 +120,17 @@ local function moveFrames(layout)
 			[1] = { anchor("BOTTOM", "UIParent", "BOTTOM", 0, 0) },
 			[2] = { anchor("BOTTOM", "MainStatusTrackingBarContainer", "TOP", 0, 0) },
 		},
-		[kinds.Minimap] = { [0] = { anchor("BOTTOM", "SecondaryStatusTrackingBarContainer", "TOP", 0, BAR_SPACING) } },
-		[kinds.MicroMenu] = { [0] = { anchor("BOTTOMLEFT", "MinimapCluster", "BOTTOMRIGHT", BARS_BESIDE_MINIMAP, 0) } },
+		-- The zone name and calendar row goes under the map.
+		[kinds.Minimap] = { [0] = { anchor("BOTTOM", "SecondaryStatusTrackingBarContainer", "TOP", 0, BAR_SPACING), function(system)
+			setValues(system, { [Enum.EditModeMinimapSetting.HeaderUnderneath] = 1 })
+		end } },
+		-- The micro menu and bags shrink to 75%; Edit Mode saves sizes as 5% steps up from 70% and 75%.
+		[kinds.MicroMenu] = { [0] = { anchor("BOTTOMLEFT", "MinimapCluster", "BOTTOMRIGHT", BARS_BESIDE_MINIMAP, 0), function(system)
+			setValues(system, { [Enum.EditModeMicroMenuSetting.Size] = 1 })
+		end } },
+		[kinds.Bags] = { [0] = { false, function(system)
+			setValues(system, { [Enum.EditModeBagsSetting.Size] = 0 })
+		end } },
 		-- Moved up out of the way of the left bars.
 		[kinds.ChatFrame] = { [0] = { anchor("BOTTOMLEFT", "UIParent", "BOTTOMLEFT", 35, frameY) } },
 		[kinds.ObjectiveTracker] = {
@@ -254,5 +263,29 @@ function ns.ApplyLayout()
 	info.activeLayout = slot
 	C_EditMode.SaveLayouts(info)
 	C_EditMode.SetActiveLayout(slot)
+	ns.db.layoutVersion = C_AddOns.GetAddOnMetadata(addonName, "Version")
 	ReloadUI()
 end
+
+-- After an update the KSUI layout is laid out again at login, so new placements arrive without a click. Only while the
+-- KSUI layout is the active one: a player who switched to another layout keeps it. The saved layouts arrive with
+-- EDIT_MODE_LAYOUTS_UPDATED, which Edit Mode handles first; this waits a frame after it.
+local function autoApply()
+	local version = C_AddOns.GetAddOnMetadata(addonName, "Version")
+	if ns.db.layoutVersion == version or InCombatLockdown() then
+		return
+	end
+	local info = C_EditMode.GetLayouts()
+	local active = info.layouts[info.activeLayout - #EditModePresetLayoutManager:GetCopyOfPresetLayouts()]
+	if active and active.layoutName == LAYOUT_NAME and active.layoutType == Enum.EditModeLayoutType.Account then
+		print("검성UI: 새 버전의 화면 배치를 적용합니다.")
+		ns.ApplyLayout()
+	end
+end
+
+local layoutsLoaded = CreateFrame("Frame")
+layoutsLoaded:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
+layoutsLoaded:SetScript("OnEvent", function(self)
+	self:UnregisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
+	C_Timer.After(0, autoApply)
+end)
