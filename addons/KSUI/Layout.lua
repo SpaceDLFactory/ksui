@@ -3,8 +3,9 @@ local _, ns = ...
 local LAYOUT_NAME = "KSUI"
 local FOCUS_ABOVE_TARGET = 110
 local CAST_BAR_ABOVE_MINIMAP = 6
-local BUFFS_ABOVE_FRAMES = 200
-local DEBUFFS_ABOVE_FRAMES = 300
+-- Debuffs sit this far above the buffs' top edge.
+local DEBUFFS_ABOVE_BUFFS = 100
+local AURAS_BESIDE_COOLDOWNS = 10
 local BAR_SPACING = 4
 local TRACKER_EDGE_GAP = 10
 local BARS_BESIDE_MINIMAP = 8
@@ -59,6 +60,10 @@ local function hideEmptySlots(system)
 	setValues(system, { [Enum.EditModeActionBarSetting.AlwaysShowButtons] = 0 })
 end
 
+local function alwaysVisible(system)
+	setValues(system, { [Enum.EditModeCooldownViewerSetting.VisibleSetting] = Enum.CooldownViewerVisibleSetting.Always })
+end
+
 local function hideEndCap(system)
 	setValues(system, { [Enum.EditModeMainActionBarEndCapSetting.Hidden] = 1 })
 end
@@ -102,10 +107,12 @@ local function moveFrames(layout)
 			end },
 			[units.Raid] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", groupX, -groupTop), applyFortyPlayerSettings },
 		},
-		-- Buffs and debuffs grow left and down from their top-right corner, above the player frame.
+		-- Buffs and debuffs grow left and down from their top-right corner, which sits left of the cooldown manager's
+		-- main row, so the row can widen as spells are learned without running into them.
 		[kinds.AuraFrame] = {
-			[auras.BuffFrame] = { anchor("TOPRIGHT", "UIParent", "BOTTOM", -frameX, frameY + BUFFS_ABOVE_FRAMES * grow) },
-			[auras.DebuffFrame] = { anchor("TOPRIGHT", "UIParent", "BOTTOM", -frameX, frameY + DEBUFFS_ABOVE_FRAMES * grow) },
+			[auras.BuffFrame] = { anchor("TOPRIGHT", "EssentialCooldownViewer", "TOPLEFT", -AURAS_BESIDE_COOLDOWNS, 0) },
+			[auras.DebuffFrame] = { anchor("TOPRIGHT", "EssentialCooldownViewer", "TOPLEFT", -AURAS_BESIDE_COOLDOWNS,
+				DEBUFFS_ABOVE_BUFFS * grow) },
 		},
 		-- The bottom row is split in two around the minimap: the main bar on its left, the micro menu and bags on
 		-- its right, each with two bars stacked on top. The experience bars run underneath.
@@ -166,8 +173,9 @@ local function moveFrames(layout)
 		},
 		-- Blizzard's cooldown manager fills these per class and spec. They stack up the middle from the cast bar.
 		[kinds.CooldownViewer] = {
-			[viewers.Essential] = { anchor("BOTTOM", "PlayerCastingBarFrame", "TOP", 0, VIEWER_SPACING) },
-			[viewers.Utility] = { anchor("BOTTOM", "EssentialCooldownViewer", "TOP", 0, VIEWER_SPACING) },
+			-- The two spell rows always show, so KSUI's click-to-cast buttons stay on the right icons (CooldownCast.lua).
+			[viewers.Essential] = { anchor("BOTTOM", "PlayerCastingBarFrame", "TOP", 0, VIEWER_SPACING), alwaysVisible },
+			[viewers.Utility] = { anchor("BOTTOM", "EssentialCooldownViewer", "TOP", 0, VIEWER_SPACING), alwaysVisible },
 			[viewers.BuffIcon] = { anchor("BOTTOM", "UtilityCooldownViewer", "TOP", 0, VIEWER_SPACING) },
 			[viewers.BuffBar] = { anchor("BOTTOM", "BuffIconCooldownViewer", "TOP", 0, VIEWER_SPACING) },
 		},

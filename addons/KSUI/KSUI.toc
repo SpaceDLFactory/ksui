@@ -14,6 +14,7 @@ Nameplates.lua
 Meter.lua
 Threat.lua
 Quest.lua
+CooldownCast.lua
 Cooldown.lua
 Layout.lua
 Combat.lua

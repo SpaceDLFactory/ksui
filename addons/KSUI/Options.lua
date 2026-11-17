@@ -21,6 +21,7 @@ local OPTIONS = {
 	{ key = "dispellableOnly", label = "해제할 수 있는 디버프만 표시", default = true, refresh = "RefreshCVars" },
 	{ header = "전투 보조" },
 	{ key = "cooldownManager", label = "직업별 쿨다운·버프 표시 (쿨다운 관리자)", default = true, refresh = "RefreshCVars" },
+	{ key = "cooldownCast", label = "쿨다운 관리자 아이콘을 눌러 스킬 사용", default = true, refresh = "RefreshCooldownCast" },
 	{ key = "rangeColor", label = "사거리 밖 버튼 빨갛게", default = true, refresh = "RefreshRange" },
 	{ key = "threatNumbers", label = "대상 프레임에 위협 수치", default = true, refresh = "RefreshCVars" },
 	{ key = "interruptHelper", label = "대상 프레임 옆에 대상 시전바와 내 차단기", default = true, refresh = "RefreshInterrupt" },
