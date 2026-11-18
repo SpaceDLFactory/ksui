@@ -53,6 +53,53 @@ local GROUPS = {
 }
 local LAST_BAG = 4
 
+-- Forever has one spec per class, always reported as a damage dealer with intellect, but its talent window has the
+-- three Classic trees. The tree with the most points decides: per class, in the window's order, its role and main
+-- stat (1 strength, 2 agility, 4 intellect). Classes not listed have one role.
+local TREE_ROLES = {
+	PALADIN = { { "HEALER", 4 }, { "TANK", 1 }, { "DAMAGER", 1 } },
+	WARRIOR = { { "DAMAGER", 1 }, { "DAMAGER", 1 }, { "TANK", 1 } },
+	PRIEST = { { "HEALER", 4 }, { "HEALER", 4 }, { "DAMAGER", 4 } },
+	DRUID = { { "DAMAGER", 4 }, { "DAMAGER", 2 }, { "HEALER", 4 } },
+	SHAMAN = { { "DAMAGER", 4 }, { "DAMAGER", 2 }, { "HEALER", 4 } },
+}
+
+-- A feral druid tanks in bear form (5, or 8 for dire bear) and fights as a cat otherwise.
+local BEAR_FORMS = { [5] = true, [8] = true }
+local FERAL_TREE = 2
+
+-- Role and main stat from the most invested talent tree, or nothing before any points are spent.
+local function talentRole(class)
+	local trees = TREE_ROLES[class]
+	local configID = trees and C_ClassTalents.GetActiveConfigID()
+	local config = configID and C_Traits.GetConfigInfo(configID)
+	local treeID = config and config.treeIDs[1]
+	if not treeID then
+		return nil
+	end
+	local groups = C_Traits.GetGroupDisplayInfoByTreeID(treeID)
+	table.sort(groups, function(a, b) return a.orderIndex < b.orderIndex end)
+	local ids, position = {}, {}
+	for i, group in ipairs(groups) do
+		ids[i], position[group.groupID] = group.groupID, i
+	end
+	local best, bestSpent = nil, 0
+	for _, info in ipairs(C_Traits.GetGroupCurrencyInfo(configID, ids)) do
+		local currency = info.currencyInfos[1]
+		local spent = currency and currency.spent or 0
+		if spent > bestSpent then
+			best, bestSpent = position[info.traitNodeGroupID], spent
+		end
+	end
+	if class == "DRUID" and best == FERAL_TREE and BEAR_FORMS[GetShapeshiftFormID()] then
+		return "TANK", 2
+	end
+	local tree = best and trees[best]
+	if tree then
+		return tree[1], tree[2]
+	end
+end
+
 local announced = {}
 
 local function currentWeights()
@@ -65,6 +112,10 @@ local function currentWeights()
 	local _, class = UnitClass("player")
 	if not (SPEC_DECIDES[class] and PRIMARY_KEY[primary]) then
 		primary = CLASS_PRIMARY[class] or 1
+	end
+	local treeRole, treePrimary = talentRole(class)
+	if treeRole then
+		role, primary = treeRole, treePrimary
 	end
 	-- Forever can report a protection paladin as a damage dealer, so the role can also be picked in the settings.
 	local choice = ns.db.gearRole

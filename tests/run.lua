@@ -227,6 +227,25 @@ local function world(state)
 			return 66, "Protection", "", 0, state.spec.role, state.spec.primary
 		end,
 	}
+	-- state.talents = { spent per tree in the talent window's order }; nil before the talent config exists.
+	env.C_ClassTalents = { GetActiveConfigID = function() return state.talents and 7 or nil end }
+	function env.GetShapeshiftFormID() return state.form end
+	env.C_Traits = {
+		GetConfigInfo = function(id) assert(id == 7); return { treeIDs = { 70 } } end,
+		-- Given out of order, as the window sorts them itself.
+		GetGroupDisplayInfoByTreeID = function(tree)
+			assert(tree == 70)
+			return { { groupID = 103, orderIndex = 2 }, { groupID = 101, orderIndex = 0 }, { groupID = 102, orderIndex = 1 } }
+		end,
+		GetGroupCurrencyInfo = function(id, groupIDs)
+			assert(id == 7 and #groupIDs == 3)
+			local infos = {}
+			for i, spent in ipairs(state.talents) do
+				infos[i] = { traitNodeGroupID = 100 + i, currencyInfos = { { spent = spent } } }
+			end
+			return infos
+		end,
+	}
 	state.tracking = state.tracking or {}
 	env.C_Minimap = {
 		GetNumTrackingTypes = function() return #state.tracking end,
@@ -1616,6 +1635,34 @@ do
 	check("picking healer scores for a healer", suggested(ns.GearSuggestions())[15] == nil)
 	state.settings.gearRole:SetValue("TANK")
 	check("picking tank scores for a tank", suggested(ns.GearSuggestions())[15] == "[cave cloak]")
+end
+
+-- Forever reports every spec as a damage dealer with intellect; the talent tree with the most points decides.
+do
+	local function header(state)
+		local env, ns = boot(state)
+		local printed = {}
+		env.print = function(text) printed[#printed + 1] = text end
+		ns.PrintGearStats()
+		return printed[1]
+	end
+	check("most points in protection: a strength tank", header(gearState({ spec = { role = "DAMAGER", primary = 4 },
+		talents = { 0, 14, 5 } })):find("TANK, 주 능력치 ITEM_MOD_STRENGTH_SHORT", 1, true) ~= nil)
+	check("most points in holy: a healer", header(gearState({ spec = { role = "DAMAGER", primary = 4 },
+		talents = { 9, 2, 0 } })):find("HEALER", 1, true) ~= nil)
+	check("no points yet: the class default", header(gearState({ spec = { role = "DAMAGER", primary = 4 },
+		talents = { 0, 0, 0 } })):find("DAMAGER, 주 능력치 ITEM_MOD_STRENGTH_SHORT", 1, true) ~= nil)
+	local mage = gearState({ spec = { role = "DAMAGER", primary = 4 }, talents = { 5, 0, 0 } })
+	mage.units.player.class = "MAGE"
+	check("a class with one role keeps it", header(mage):find("DAMAGER, 주 능력치 ITEM_MOD_INTELLECT_SHORT", 1, true) ~= nil)
+	local feral = gearState({ spec = { role = "DAMAGER", primary = 4 }, talents = { 0, 20, 0 } })
+	feral.units.player.class = "DRUID"
+	check("a feral druid out of bear form is an agility melee", header(feral):find("DAMAGER, 주 능력치 ITEM_MOD_AGILITY_SHORT", 1, true) ~= nil)
+	feral.form = 5
+	check("and a tank in bear form", header(feral):find("TANK, 주 능력치 ITEM_MOD_AGILITY_SHORT", 1, true) ~= nil)
+	local chosen = gearState({ spec = { role = "DAMAGER", primary = 4 }, talents = { 0, 14, 5 } })
+	chosen.savedDB = { gearRole = "MELEE" }
+	check("a role picked in the settings wins", header(chosen):find("DAMAGER", 1, true) ~= nil)
 end
 
 -- A swap less than 10% better is not suggested.
