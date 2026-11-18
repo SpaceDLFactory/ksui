@@ -227,22 +227,10 @@ function ns.PlaceAlerts()
 	AlertFrame:SetPoint("BOTTOM", BuffBarCooldownViewer, "TOP", 0, ALERTS_ABOVE_COOLDOWNS)
 end
 
--- Saves a copy of the active layout with the frames moved, then reloads to clear addon taint from Edit Mode.
--- Blizzard lets the UI reload only right after a click or key press. Applying from a command or button reloads at
--- once; applying on its own (at login, or when the settings window closes) asks with a button instead.
-StaticPopupDialogs.KSUI_RELOAD = {
-	text = "검성UI: 화면 배치를 저장했습니다. 적용하려면 UI를 다시 불러와야 합니다.",
-	button1 = "다시 불러오기",
-	button2 = "나중에",
-	OnAccept = function()
-		ReloadUI()
-	end,
-	timeout = 0,
-	whileDead = true,
-	hideOnEscape = true,
-}
-
-local function applyLayout(askToReload)
+-- Saves a copy of the active layout with the frames moved. From the command or the settings button it reloads at once,
+-- which clears addon taint from Edit Mode. On its own it runs while the UI loads or unloads instead, so Blizzard
+-- reads the saved layout itself at the next load: no command, no reload button.
+local function applyLayout(reload)
 	if InCombatLockdown() then
 		print("검성UI: 전투 중에는 레이아웃을 바꿀 수 없습니다.")
 		return
@@ -291,64 +279,68 @@ local function applyLayout(askToReload)
 	C_EditMode.SaveLayouts(info)
 	C_EditMode.SetActiveLayout(slot)
 	ns.db.layoutVersion = C_AddOns.GetAddOnMetadata(addonName, "Version")
-	if askToReload then
-		StaticPopup_Show("KSUI_RELOAD")
-	else
+	ns.db.layoutPending = nil
+	if reload then
 		ReloadUI()
 	end
 end
 
 function ns.ApplyLayout()
-	applyLayout(false)
+	applyLayout(true)
 end
 
--- The layout is laid out at login on a first install and after an update, so placements arrive without a click.
--- After an update only while the KSUI layout is the active one: a player who switched to another layout keeps it.
--- The saved layouts arrive with EDIT_MODE_LAYOUTS_UPDATED, which Edit Mode handles first; this waits a frame after it.
-local function autoApply()
+-- While the UI loads, the layout is saved on a first install, after an update (while the KSUI layout is the active one:
+-- a player who switched to another layout keeps it), and after layout settings changed. The saved layouts arrive
+-- with EDIT_MODE_LAYOUTS_UPDATED, which Edit Mode handles first; this waits a frame after it.
+local function applyAtLoad()
 	local version = C_AddOns.GetAddOnMetadata(addonName, "Version")
-	if ns.db.layoutVersion == version or InCombatLockdown() then
+	if InCombatLockdown() then
 		return
 	end
-	if ns.db.layoutVersion == nil then
-		print("검성UI: 화면 배치를 처음 적용합니다.")
-		applyLayout(true)
+	if ns.db.layoutVersion == nil or ns.db.layoutPending then
+		applyLayout(false)
+		return
+	end
+	if ns.db.layoutVersion == version then
 		return
 	end
 	local info = C_EditMode.GetLayouts()
 	local active = info.layouts[info.activeLayout - #EditModePresetLayoutManager:GetCopyOfPresetLayouts()]
 	if active and active.layoutName == LAYOUT_NAME and active.layoutType == Enum.EditModeLayoutType.Account then
-		print("검성UI: 새 버전의 화면 배치를 적용합니다.")
-		applyLayout(true)
+		applyLayout(false)
 	end
 end
 
--- Settings that change the layout are applied once the settings window closes, not at every slider step, since
--- applying reloads the UI. In combat it waits for the fight to end.
-local layoutChanged = false
+-- Settings that change the layout are saved when the UI unloads (logging out or /reload), and again at the next load
+-- in case that save didn't go through, not at every slider step.
+local changedNow = false
 
 function ns.LayoutSettingChanged()
-	layoutChanged = true
-end
-
-local function applyChangedLayout()
-	if layoutChanged and not InCombatLockdown() then
-		layoutChanged = false
-		print("검성UI: 바뀐 위치 설정을 적용합니다.")
-		applyLayout(true)
-	end
+	ns.db.layoutPending = true
+	changedNow = true
 end
 
 function ns.InitLayoutSettings()
-	SettingsPanel:HookScript("OnHide", applyChangedLayout)
-	local combatEnd = CreateFrame("Frame")
-	combatEnd:RegisterEvent("PLAYER_REGEN_ENABLED")
-	combatEnd:SetScript("OnEvent", applyChangedLayout)
+	SettingsPanel:HookScript("OnHide", function()
+		if changedNow then
+			changedNow = false
+			print("검성UI: 바뀐 위치 설정은 다음 접속이나 /reload 때 적용됩니다.")
+		end
+	end)
+	local unload = CreateFrame("Frame")
+	unload:RegisterEvent("PLAYER_LOGOUT")
+	unload:SetScript("OnEvent", function()
+		if ns.db.layoutPending then
+			applyLayout(false)
+			-- Kept until the next load has seen it saved.
+			ns.db.layoutPending = true
+		end
+	end)
 end
 
 local layoutsLoaded = CreateFrame("Frame")
 layoutsLoaded:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
 layoutsLoaded:SetScript("OnEvent", function(self)
 	self:UnregisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
-	C_Timer.After(0, autoApply)
+	C_Timer.After(0, applyAtLoad)
 end)

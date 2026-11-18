@@ -1299,45 +1299,41 @@ do
 	check("replacing own layout at the limit works", state.saved ~= nil and #state.saved.layouts == 5)
 end
 
--- First install, and settings changed in the panel. Blizzard allows a reload only right after a click, so these save
--- the layout and ask with a button.
-local function askedToReload(state)
-	local last = state.popups[#state.popups]
-	return last ~= nil and last[1] == "KSUI_RELOAD" and not state.reloaded
-end
-
+-- First install, and settings changed in the panel: saved while the UI loads or unloads, with no command or reload.
 do
 	local state = layoutState({ active = 2 })
 	local env = boot(state)
 	fire(env, "EDIT_MODE_LAYOUTS_UPDATED")
 	for _, timer in ipairs(state.timers) do timer() end
-	check("a first install lays out without a command", state.saved ~= nil and askedToReload(state))
-	env.StaticPopupDialogs.KSUI_RELOAD.OnAccept()
-	check("the button reloads", state.reloaded)
+	check("a first install lays out at load without a command or reload", state.saved ~= nil and not state.reloaded
+		and #state.popups == 0)
 
 	state = layoutState({ active = 4, layouts = { { layoutName = "KSUI", layoutType = 1, systems = systems(5) } } })
 	state.savedDB.layoutVersion = "0.11.0"
 	env = boot(state)
 	state.settings.frameYPct:SetValue(25)
 	state.settings.frameYPct:SetValue(26)
-	check("slider steps don't apply", state.saved == nil)
 	env.SettingsPanel.hooks.OnHide()
-	check("closing the settings applies them once", state.saved ~= nil and askedToReload(state))
+	check("changing settings saves nothing yet", state.saved == nil and state.printed:find("다음 접속", 1, true) ~= nil)
+	fire(env, "PLAYER_LOGOUT")
+	check("logging out or reloading saves it", state.saved ~= nil and not state.reloaded and env.KSUIDB.layoutPending == true)
+
+	-- The next load saves again in case the logout save didn't go through, then forgets it.
+	local saved = env.KSUIDB
+	state = layoutState({ active = 4, layouts = { { layoutName = "KSUI", layoutType = 1, systems = systems(5) } },
+		savedDB = saved })
+	env = boot(state)
+	fire(env, "EDIT_MODE_LAYOUTS_UPDATED")
+	for _, timer in ipairs(state.timers) do timer() end
+	check("the next load saves it again and forgets it", state.saved ~= nil and env.KSUIDB.layoutPending == nil)
 	state.saved = nil
-	env.SettingsPanel.hooks.OnHide()
-	check("nothing changed, nothing applied", state.saved == nil)
+	fire(env, "PLAYER_LOGOUT")
+	check("nothing pending, nothing saved at logout", state.saved == nil)
 	state.settings.fadeAlpha:SetValue(0.5)
-	env.SettingsPanel.hooks.OnHide()
+	fire(env, "PLAYER_LOGOUT")
 	check("other settings don't touch the layout", state.saved == nil)
-	state.combat = true
-	state.settings.raidStyleParty:SetValue(false)
-	env.SettingsPanel.hooks.OnHide()
-	check("not in combat", state.saved == nil)
-	state.combat = false
-	fire(env, "PLAYER_REGEN_ENABLED")
-	check("after the fight instead", state.saved ~= nil)
 	env.SlashCmdList.KSUI("layout")
-	check("the command still reloads at once", state.reloaded)
+	check("the command still saves and reloads at once", state.saved ~= nil and state.reloaded)
 end
 
 -- Blizzard's raid-style party frames instead: they have you in them, so no room is left for KSUI's row.
@@ -1360,7 +1356,7 @@ do
 	check("nothing before Edit Mode has the layouts", not state.reloaded)
 	fire(env, "EDIT_MODE_LAYOUTS_UPDATED")
 	for _, timer in ipairs(state.timers) do timer() end
-	check("update re-applies the active KSUI layout", askedToReload(state) and state.saved ~= nil
+	check("update re-applies the active KSUI layout", not state.reloaded and state.saved ~= nil
 		and state.saved.layouts[4].layoutName == "KSUI" and state.savedDB.layoutVersion == "0.11.0")
 
 	state = layoutState({ active = 4, layouts = layouts })
