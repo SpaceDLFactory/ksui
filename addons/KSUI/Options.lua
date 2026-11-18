@@ -57,7 +57,11 @@ local function addControl(category, setting, option)
 		Settings.CreateColorSwatch(category, setting)
 	else
 		local options = Settings.CreateSliderOptions(option.min, option.max, option.step)
-		options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right)
+		-- As many decimals as the step has, so a converted 6.09374... shows as 6.1.
+		local decimals = option.step >= 1 and 0 or math.ceil(-math.log10(option.step) - 1e-9)
+		options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, function(value)
+			return ("%." .. decimals .. "f"):format(value)
+		end)
 		Settings.CreateSlider(category, setting, options)
 	end
 end

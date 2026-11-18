@@ -111,7 +111,8 @@ local function mockSettings(env, state)
 		CreateColorSwatch = control("color"),
 		CreateSlider = control("slider"),
 		CreateSliderOptions = function(min, max, step)
-			return { min = min, max = max, step = step, SetLabelFormatter = function(self, f) self.formatter = f end }
+			return { min = min, max = max, step = step,
+				SetLabelFormatter = function(self, label, format) self.formatter = label; self.format = format end }
 		end,
 	}
 	env.MinimalSliderWithSteppersMixin = { Label = { Right = 1 } }
@@ -709,6 +710,9 @@ do
 	check("color control", state.controls.KSUI_artColor.kind == "color")
 	check("slider control", state.controls.KSUI_cooldownFontSize.kind == "slider")
 	check("slider range", state.controls.KSUI_frameXPct.options.max == 30 and state.controls.KSUI_frameXPct.options.formatter == 1)
+	check("slider numbers rounded to the step", state.controls.KSUI_frameXPct.options.format(6.0937498183921) == "6.1"
+		and state.controls.KSUI_fadeAlpha.options.format(0.4) == "0.40"
+		and state.controls.KSUI_cooldownFontSize.options.format(14) == "14")
 	check("button present", state.button and state.button.buttonClick == ns.ApplyLayout)
 	check("quick buttons first", state.headers[1] == "빠른 실행")
 	check("sections", #state.headers == 7)
