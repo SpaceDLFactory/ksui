@@ -21,7 +21,7 @@ It is built on Blizzard's own frames, so it keeps working under instance and rai
 ## Features
 
 - **Square unit frames** for player, target, focus and party, with animated 3D portraits, class-colored health, shield (absorb) bars and a threat glow when mobs attack you. Incoming heals show on the health bars; party rows add you, group roles, shields and heals over time, Blizzard's debuffs and an aggro edge. Clicks, menus and auras stay Blizzard's.
-- **Bottom layout**: experience bar, minimap, cast bar and cooldown manager stacked in the middle, action bars on both sides of the minimap. Applied with `/ksui layout`.
+- **Bottom layout**: experience bar, minimap, cast bar and cooldown manager stacked in the middle, action bars on both sides of the minimap. Applied automatically as the UI loads.
 - **Clickable cooldown manager**: click an icon in Blizzard's cooldown manager to cast that spell.
 - **Quest guide arrow** on the minimap pointing at your tracked quest, with the distance, and optional auto-tracking of the nearest quest.
 - **Damage meter** built on Blizzard's combat data: damage, healing or damage taken, the latest fights to pick from, per-spell detail and a reset button.
@@ -37,7 +37,7 @@ It is built on Blizzard's own frames, so it keeps working under instance and rai
 
 - Settings: `/ksui` or Options > AddOns > 검성UI. Every feature has its own toggle, and the top of the panel has buttons to apply the layout and reload the UI.
 - Reset the damage meter: the reset button on its title, or `/ksui reset`.
-- Apply the layout: the button at the top of the settings, or `/ksui layout` (creates the `KSUI` Edit Mode layout and reloads the UI).
+- The layout applies itself on install and after updates; changed positions apply at the next login or /reload. To apply right away: the button at the top of the settings, or `/ksui layout`.
 
 ## Works well with
 
@@ -58,7 +58,7 @@ WoW Forever(인터페이스 16001)용 오픈소스 UI입니다. 기본 UI를 어
 ## 주요 기능
 
 - **네모 유닛 프레임** — 내·대상·주시·파티 프레임을 네모 초상화(움직이는 3D)와 직업색 체력바로, 보호막은 하늘색 막대로, 어그로를 받으면 테두리가 빛남. 들어올 힐 표시, 파티 칸에 나·역할·보호막과 지속 힐·디버프·어그로 테두리. 클릭·메뉴·버프는 블리자드 그대로.
-- **하단 배치** — 경험치바, 미니맵, 시전바, 쿨다운 관리자를 가운데 아래로 쌓고, 단축바를 미니맵 양옆에 배치. 명령어 한 줄(`/ksui layout`)로 적용.
+- **하단 배치** — 경험치바, 미니맵, 시전바, 쿨다운 관리자를 가운데 아래로 쌓고, 단축바를 미니맵 양옆에 배치. 로딩 때 알아서 적용.
 - **누르는 쿨다운 관리자** — 쿨다운 관리자 아이콘을 누르면 그 스킬을 씁니다.
 - **퀘스트 길안내 화살표** — 미니맵 모서리에서 추적 중인 퀘스트 방향과 거리를 가리키고, 가장 가까운 퀘스트를 자동으로 추적할 수도 있습니다.
 - **딜미터** — 블리자드 전투 데이터를 쓰는 딜미터. 피해량·치유량·받은 피해, 최근 전투 선택, 스킬별 상세, 초기화 버튼.
@@ -75,7 +75,7 @@ WoW Forever(인터페이스 16001)용 오픈소스 UI입니다. 기본 UI를 어
 
 - 설정: `/ksui` 또는 설정 > 애드온 > 검성UI. 모든 기능을 하나씩 켜고 끌 수 있고, 맨 위에 화면 배치 적용과 UI 다시 불러오기 버튼이 있습니다.
 - 딜미터 초기화: 딜미터 제목의 `초기화` 버튼 또는 `/ksui reset`
-- 화면 배치 적용: 설정 맨 위 `화면 배치 적용` 버튼 또는 `/ksui layout` (편집 모드 레이아웃 `KSUI`를 새로 만들고 UI를 다시 불러옵니다.)
+- 화면 배치: 설치·업데이트 때 알아서 적용되고, 바꾼 위치는 다음 접속이나 /reload 때 적용됩니다. 바로 적용하려면 설정 맨 위 `화면 배치 적용` 버튼이나 `/ksui layout`.
 
 ## 같이 쓰면 좋은 애드온
 
