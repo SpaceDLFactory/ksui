@@ -18,6 +18,7 @@ CooldownCast.lua
 AutoQuest.lua
 Chat.lua
 Convenience.lua
+ShortBuffs.lua
 Cooldown.lua
 Layout.lua
 Combat.lua

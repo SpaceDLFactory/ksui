@@ -298,6 +298,9 @@ local function listen(frame, unitChanged)
 	events:SetScript("OnEvent", function(_, event)
 		if ns.db.customUnitFrames and UnitExists(frame.unit) then
 			(UPDATES[event] or updateAll)(frame)
+		elseif event == "UNIT_AURA" or event == "GROUP_ROSTER_UPDATE" then
+			-- Shield icons also go on Blizzard's party frames while KSUI's rows are off.
+			updateHots(frame)
 		end
 	end)
 	return events
@@ -408,79 +411,24 @@ local function placePartyExtras(member, frame)
 	end
 end
 
--- Shields and heals over time on a party member, whoever cast them, small at the bar's bottom left. Forever reports
--- other players' auras with no duration and ignores the aura filters, so they are picked by name from this list
--- (Classic rank 1 spell IDs; any rank matches by name), which leaves the long group buffs out. The time left shows
--- as a cooldown swipe when the game gives one. When an aura's name is secret, as in instances, it is left out.
-local HOT_COUNT, HOT_SIZE = 4, 12
-local SHORT_BUFF_SPELLS = {
-	17, 139, 552, -- Power Word: Shield, Renew, Abolish Disease
-	774, 8936, 2893, -- Rejuvenation, Regrowth, Abolish Poison
-	1022, -- Blessing of Protection
-}
-local shortBuffNames
+-- Shields and heals over time (ShortBuffs.lua): small at the bottom left of KSUI's party row, and to the right of
+-- Blizzard's own party frame for when KSUI's rows are switched off.
+local HOT_SIZE, BLIZZARD_HOT_SIZE = 12, 14
 
-local function isShortBuff(aura)
-	if not shortBuffNames then
-		shortBuffNames = {}
-		for _, spell in ipairs(SHORT_BUFF_SPELLS) do
-			local name = C_Spell.GetSpellName(spell)
-			if name then
-				shortBuffNames[name] = true
-			end
-		end
-	end
-	local name, id = aura.name, aura.auraInstanceID
-	if issecretvalue(name) or issecretvalue(id) then
-		return false
-	end
-	return shortBuffNames[name] == true
-end
-
-local function addHots(frame)
-	frame.hots = {}
-	for i = 1, HOT_COUNT do
-		local icon = CreateFrame("Frame", nil, frame.health)
-		icon:SetSize(HOT_SIZE, HOT_SIZE)
-		icon:SetPoint("BOTTOMLEFT", 2 + (i - 1) * (HOT_SIZE + 1), 2)
-		icon:SetFrameLevel(frame.absorb:GetFrameLevel() + 2)
-		icon.texture = icon:CreateTexture(nil, "ARTWORK")
-		icon.texture:SetAllPoints()
-		icon.texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-		icon.cooldown = CreateFrame("Cooldown", nil, icon, "CooldownFrameTemplate")
-		icon.cooldown:SetAllPoints()
-		icon.cooldown:SetHideCountdownNumbers(true)
-		icon:Hide()
-		frame.hots[i] = icon
-	end
+local function addHots(frame, member)
+	frame.hots = ns.CreateShortBuffIcons(frame.health, HOT_SIZE, "BOTTOMLEFT", 2, 2, "RIGHT", frame.absorb:GetFrameLevel() + 2)
+	frame.blizzardHots = ns.CreateShortBuffIcons(member, BLIZZARD_HOT_SIZE, "TOPRIGHT", BLIZZARD_HOT_SIZE + 2, 0, "RIGHT",
+		member:GetFrameLevel() + 5)
 end
 
 function updateHots(frame)
 	if not frame.hots then
 		return
 	end
-	local unit = frame.unit
-	local auras = C_UnitAuras.GetUnitAuras(unit, "HELPFUL")
-	local shown = {}
-	if not issecretvalue(auras) and canaccesstable(auras) then
-		for _, aura in ipairs(auras) do
-			if #shown < HOT_COUNT and isShortBuff(aura) then
-				shown[#shown + 1] = aura
-			end
-		end
-	end
-	for i, icon in ipairs(frame.hots) do
-		local aura = shown[i]
-		icon:SetShown(aura ~= nil)
-		if aura then
-			icon.texture:SetTexture(aura.icon)
-			local duration = aura.duration
-			if not issecretvalue(duration) and duration > 0 then
-				icon.cooldown:SetCooldownFromDurationObject(C_UnitAuras.GetAuraDuration(unit, aura.auraInstanceID))
-			else
-				icon.cooldown:Clear()
-			end
-		end
+	local custom = ns.db.customUnitFrames
+	ns.UpdateShortBuffIcons(frame.hots, custom and frame.unit or nil)
+	if frame.blizzardHots then
+		ns.UpdateShortBuffIcons(frame.blizzardHots, not custom and frame.unit or nil)
 	end
 end
 
@@ -497,7 +445,7 @@ local function attachPartyFrames()
 			frame:SetPoint("LEFT")
 			listen(frame, "GROUP_ROSTER_UPDATE")
 			addRole(frame)
-			addHots(frame)
+			addHots(frame, member)
 			hooksecurefunc(member.Portrait, "SetAlpha", keepPortraitHidden)
 			for _, art in ipairs({ "ToPlayerArt", "ToVehicleArt", "ToCharacterStyleArt" }) do
 				hooksecurefunc(member, art, function()
@@ -614,6 +562,8 @@ function ns.RefreshUnitFrames()
 		frame:SetShown(custom)
 		if custom then
 			updateAll(frame)
+		else
+			updateHots(frame)
 		end
 	end
 	-- Blizzard's own anchoring puts the auras back when the option is off; the hook moves them when it's on.

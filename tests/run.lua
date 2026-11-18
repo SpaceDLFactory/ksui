@@ -230,6 +230,8 @@ local function world(state)
 	-- state.talents = { spent per tree in the talent window's order }; nil before the talent config exists.
 	env.C_ClassTalents = { GetActiveConfigID = function() return state.talents and 7 or nil end }
 	function env.GetShapeshiftFormID() return state.form end
+	-- Blizzard's raid frames: setting a unit, as in Blizzard_UnitFrame/Shared/CompactUnitFrame.lua.
+	function env.CompactUnitFrame_SetUnit(frame, unit) frame.unit, frame.displayedUnit = unit, unit end
 	env.C_Traits = {
 		GetConfigInfo = function(id) assert(id == 7); return { treeIDs = { 70 } } end,
 		-- Given out of order, as the window sorts them itself.
@@ -692,7 +694,7 @@ local function world(state)
 	local function partyMember(i)
 		local member = { unitToken = "party" .. i, GetWidth = function() return 120 end, Texture = texture(), VehicleTexture = texture(), Flash = texture(),
 			Portrait = texture(), Name = texture(), HealthBarContainer = alphaFrame(), ManaBar = alphaFrame(),
-			AuraFrameContainer = texture() }
+			AuraFrameContainer = texture(), GetFrameLevel = function() return 4 end }
 		-- Blizzard's art update sets the glow back to its own spot, as in Blizzard_UnitFrame/Mainline/PartyMemberFrame.lua.
 		function member:ToPlayerArt() self.Flash:SetAtlas("ui-hud-unitframe-party-portraiton-incombat"); self.Flash:SetPoint("TOPLEFT", self) end
 		function member:ToVehicleArt() end
@@ -2234,6 +2236,46 @@ do
 	check("caught up after combat", state.drivers[row] ~= nil)
 	state.settings.customUnitFrames:SetValue(false)
 	check("option off removes it", state.drivers[row] == nil and row.shown == false)
+end
+
+-- Shield icons on Blizzard's frames: raid frames (and raid-style party frames), and its party frames with KSUI's rows off.
+do
+	local state = { units = { player = mage, party1 = { player = true, class = "PRIEST" }, raid3 = { player = true } } }
+	local env = boot(state)
+	local function compact(name, forbidden)
+		return { GetName = function() return name end, IsForbidden = function() return forbidden end,
+			GetFrameLevel = function() return 2 end }
+	end
+	local shield = { name = "신의 권능: 보호막", icon = "shield", auraInstanceID = 9, duration = 0 }
+	local kings = { name = "왕의 축복", icon = "kings", auraInstanceID = 10, duration = 0 }
+	state.myAuras = { raid3 = { kings, shield }, party1 = { shield } }
+	local raid, plate = compact("CompactRaidFrame3"), compact("NamePlate1", false)
+	env.CompactUnitFrame_SetUnit(raid, "raid3")
+	env.CompactUnitFrame_SetUnit(plate, "raid3")
+	env.CompactUnitFrame_SetUnit(compact("CompactPartyFrameMember1", true), "party1")
+	local raidIcons, plateIcons = {}, {}
+	for _, f in ipairs(state.frames) do
+		if f.parent == raid and f.size then raidIcons[#raidIcons + 1] = f end
+		if f.parent == plate then plateIcons[#plateIcons + 1] = f end
+	end
+	check("raid frames get the shield, not the blessing", #raidIcons == 4 and raidIcons[1].shown
+		and raidIcons[1].texture.file == "shield" and raidIcons[2].shown == false)
+	check("other frames that code draws are left alone", #plateIcons == 0)
+	state.myAuras.raid3 = {}
+	fire(env, "UNIT_AURA", "raid3")
+	check("they follow the unit's auras", raidIcons[1].shown == false)
+
+	local member = env.partyMembers[1]
+	state.settings.customUnitFrames:SetValue(false)
+	fire(env, "UNIT_AURA", "party1")
+	local blizzardIcons = {}
+	for _, f in ipairs(state.frames) do
+		if f.parent == member and f.size and f.size[1] == 14 then blizzardIcons[#blizzardIcons + 1] = f end
+	end
+	check("with KSUI's rows off, Blizzard's party frame gets them", #blizzardIcons == 4 and blizzardIcons[1].shown
+		and blizzardIcons[1].texture.file == "shield")
+	state.settings.customUnitFrames:SetValue(true)
+	check("and they go when the rows are back", blizzardIcons[1].shown == false)
 end
 
 -- Threat glow
