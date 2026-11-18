@@ -250,6 +250,7 @@ local function targetParts(blizzard)
 end
 
 local partyFrames = {}
+local threatGlowFrame
 
 -- Blizzard pulses the portrait's alpha on a member in trouble, so it is put back to zero after each change.
 local function keepPortraitHidden(portrait)
@@ -325,12 +326,43 @@ local function followAuras(blizzard, frame)
 	placeAuras(blizzard, frame)
 end
 
+-- Blizzard shows your threat as a colored glow round its own player frame, which ours covers. That glow moves to ours,
+-- squared off and just outside its edge; Blizzard keeps showing, hiding and coloring it, threat being secret in
+-- instances. Blizzard sets its shape again when the frame changes, so it is squared off again after.
+local THREAT_GLOW = 3
+
+local function placeThreatGlow(frame)
+	local glow = PlayerFrame.PlayerFrameContainer.FrameFlash
+	if not ns.db.customUnitFrames then
+		-- Back where Blizzard_UnitFrame/Mainline/PlayerFrame.xml has it; Blizzard's rest and combat art is anchored to
+		-- its parent, so that is placed again too.
+		glow:SetParent(PlayerFrame.PlayerFrameContainer)
+		glow:ClearAllPoints()
+		glow:SetDrawLayer("OVERLAY")
+		PlayerFrame_UpdateFlashTextureVisuals()
+		PlayerFrame_UpdateStatusTextureVisuals()
+		return
+	end
+	glow:SetParent(frame)
+	glow:SetTexture(FLAT)
+	glow:SetDrawLayer("BACKGROUND", -8)
+	glow:ClearAllPoints()
+	glow:SetPoint("TOPLEFT", -THREAT_GLOW, THREAT_GLOW)
+	glow:SetPoint("BOTTOMRIGHT", THREAT_GLOW, -THREAT_GLOW)
+end
+
 function ns.InitUnitFrames()
 	-- Your model may not be loaded yet at login.
 	-- UNIT_LEVEL does not cover your own level; Blizzard_UnitFrame/Mainline/PlayerFrame.lua listens to this instead.
 	local player = build(PlayerFrame, "player", false, WIDTH, HEIGHT,
 		{ PlayerFrame.PlayerFrameContainer, PlayerFrame.PlayerFrameContent.PlayerFrameContentMain })
 	listen(player, "PLAYER_ENTERING_WORLD"):RegisterEvent("PLAYER_LEVEL_CHANGED")
+	threatGlowFrame = player
+	hooksecurefunc("PlayerFrame_UpdateFlashTextureVisuals", function()
+		if ns.db.customUnitFrames then
+			placeThreatGlow(player)
+		end
+	end)
 	local target = build(TargetFrame, "target", true, WIDTH, HEIGHT, targetParts(TargetFrame))
 	listen(target, "PLAYER_TARGET_CHANGED")
 	followAuras(TargetFrame, target)
@@ -367,6 +399,7 @@ function ns.RefreshUnitFrames()
 	end
 	-- Blizzard's own anchoring puts the auras back when the option is off; the hook moves them when it's on.
 	if not InCombatLockdown() then
+		placeThreatGlow(threatGlowFrame)
 		TargetFrame:AnchorAuraContainer()
 		FocusFrame:AnchorAuraContainer()
 	end

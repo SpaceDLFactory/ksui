@@ -38,7 +38,11 @@ local function texture()
 	function t:SetRotation(r) self.rotation = r end
 	function t:SetTextColor(r, g, b) self.textColor = { r, g, b } end
 	function t:ClearAllPoints() self.points = 0 end
-	function t:SetDrawLayer(l) self.layer = l end
+	function t:SetDrawLayer(l, sub) self.layer = l; self.sublayer = sub end
+	function t:SetParent(p) self.parent = p end
+	function t:Show() self.shown = true end
+	function t:Hide() self.shown = false end
+	function t:SetText(v) self.text = v end
 	function t:SetAllPoints() end
 	function t:SetSize() end
 	function t:SetVertexColorFromBoolean(v, yes, no) self.colorFrom = { v, yes, no } end
@@ -271,6 +275,14 @@ local function world(state)
 	function env.UnitPower(u) return field(u, "power", 50) end
 	function env.UnitPowerMax(u) return field(u, "maxPower", 100) end
 	function env.UnitLevel(u) return field(u, "level", 14) end
+	-- Blizzard's own reshaping of the threat glow, as in Blizzard_UnitFrame/Camelot/PlayerFrame.lua.
+	function env.PlayerFrame_UpdateFlashTextureVisuals()
+		local glow = env.PlayerFrame.PlayerFrameContainer.FrameFlash
+		glow:SetAtlas("UI-HUD-UnitFrame-Player-PortraitOn-InCombat")
+		glow:SetPoint("CENTER", glow.parent, "CENTER", 0, 0)
+	end
+	function env.PlayerFrame_UpdateStatusTextureVisuals() state.statusPlaced = env.PlayerFrame.PlayerFrameContainer.FrameFlash.parent end
+	function env.GetCreatureDifficultyColor(level) return level == 999 and { r = 1, g = 0.1, b = 0.1 } or { r = 0.5, g = 1, b = 0 } end
 	function env.UnitName(u) return field(u, "name", "Name"), state.units[u].surname end
 	function env.UnitIsVisible(u) return not state.units[u].far end
 	env.C_Secrets = { ShouldUnitIdentityBeSecret = function(u) return state.units[u].hiddenIdentity == true end }
@@ -524,7 +536,7 @@ local function world(state)
 	end
 	env.PlayerFrame = {
 		PlayerFrameContainer = alphaFrame({
-			FrameTexture = texture(), VehicleFrameTexture = texture(), AlternatePowerFrameTexture = texture(),
+			FrameTexture = texture(), VehicleFrameTexture = texture(), AlternatePowerFrameTexture = texture(), FrameFlash = texture(),
 		}),
 		PlayerFrameContent = { PlayerFrameContentMain = alphaFrame({ HealthBarsContainer = { HealthBar = bar() } }) },
 	}
@@ -1880,6 +1892,23 @@ do
 	local frame = unitFrame(state, "party1")
 	check("party joined after login gets a frame", frame ~= nil and env.partyMembers[1].Texture.alpha == 0
 		and frame.health.barValue == 80)
+end
+
+-- Threat glow
+do
+	local state = { units = { player = mage } }
+	local env = boot(state)
+	local player = unitFrame(state, "player")
+	local glow = env.PlayerFrame.PlayerFrameContainer.FrameFlash
+	check("threat glow moves onto our frame, squared just outside it", glow.parent == player
+		and glow.file == "Interface\\ChatFrame\\ChatFrameBackground" and glow.point[1] == "BOTTOMRIGHT" and glow.point[2] == 3
+		and glow.layer == "BACKGROUND")
+	env.PlayerFrame_UpdateFlashTextureVisuals()
+	check("Blizzard reshaping it is squared off again", glow.parent == player and glow.point[1] == "BOTTOMRIGHT")
+	state.settings.customUnitFrames:SetValue(false)
+	check("option off hands it back to Blizzard", glow.parent == env.PlayerFrame.PlayerFrameContainer
+		and glow.atlas == "UI-HUD-UnitFrame-Player-PortraitOn-InCombat" and glow.layer == "OVERLAY"
+		and glow.point[1] == "CENTER" and glow.points == 1 and state.statusPlaced == env.PlayerFrame.PlayerFrameContainer)
 end
 
 -- Nameplates
