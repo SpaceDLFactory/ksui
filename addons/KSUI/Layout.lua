@@ -10,8 +10,11 @@ local BAR_SPACING = 4
 local TRACKER_EDGE_GAP = 10
 local BARS_BESIDE_MINIMAP = 8
 local VIEWER_SPACING = 6
--- Edit Mode saves the party frame size in 5% steps from 100%, so 5 steps is 125%.
-local PARTY_SIZE_STEPS = 5
+-- Edit Mode saves the party frame size in 5% steps from 100%, so 3 steps is 115%.
+local PARTY_SIZE_STEPS = 3
+-- KSUI puts a row for you above the party (UnitFrames.lua): Blizzard's 53-tall member frame and its 10 spacing, at
+-- the party's size.
+local PARTY_PLAYER_ROW = (53 + 10) * (1 + PARTY_SIZE_STEPS / 20)
 -- A screen taller in UI units than the reference (measured: the 224-unit player frame is 405 pixels on it) makes
 -- everything smaller, so the player and target frames grow by the same ratio, up to Edit Mode's 200%.
 local MAX_SIZE_STEPS = 20
@@ -102,7 +105,8 @@ local function moveFrames(layout)
 			-- tracker's top-left corner so they stay clear of the bars beside it.
 			[units.Boss] = { anchor("BOTTOMRIGHT", "ObjectiveTrackerFrame", "TOPLEFT", -10, 0) },
 			-- Party and raid are the only frames at the top. Blizzard requires a TOPLEFT anchor for them.
-			[units.Party] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", groupX, -groupTop), function(system)
+			[units.Party] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", groupX,
+				-groupTop - (db.customUnitFrames and PARTY_PLAYER_ROW or 0)), function(system)
 				setValues(system, { [Enum.EditModeUnitFrameSetting.FrameSize] = PARTY_SIZE_STEPS })
 			end },
 			[units.Raid] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", groupX, -groupTop), applyFortyPlayerSettings },

@@ -447,6 +447,10 @@ local function world(state)
 	function env.CinematicFrame_CancelCinematic() state.cutsceneCancelled = (state.cutsceneCancelled or 0) + 1 end
 	function env.GetSubZoneText() return state.subzone or "" end
 	function env.UnitIsUnit(a, b) return a == b end
+	function env.UnitGroupRolesAssigned(u) return (state.roles or {})[u] or "NONE" end
+	state.drivers = {}
+	function env.RegisterStateDriver(frame, kind, rule) state.drivers[frame] = rule end
+	function env.UnregisterStateDriver(frame) state.drivers[frame] = nil end
 	env.MainStatusTrackingBarContainer = env.CreateFrame("Frame")
 	-- state.quest = { map, player = {x, y} or nil, facing, supertracked, waypoint = {x, y}, onMap = {...}, log = {...} }
 	-- World positions here are the map position scaled: north is -y on the map, west is -x.
@@ -650,7 +654,8 @@ local function world(state)
 	local partyMembers = state.noParty and {} or { partyMember(1), partyMember(2) }
 	env.partyMembers = partyMembers
 	env.newPartyMember = partyMember
-	env.PartyFrame = { InitializePartyMemberFrames = function() end, PartyMemberFramePool = {
+	env.EditModeManagerFrame = { UseRaidStylePartyFrames = function() return state.raidStyleParty end }
+	env.PartyFrame = { InitializePartyMemberFrames = function() end, UpdatePartyFrames = function() end, PartyMemberFramePool = {
 		EnumerateActive = function()
 			local i = 0
 			return function()
@@ -1049,10 +1054,10 @@ do
 	local focus, party, raid, boss = layout.systems[3], layout.systems[5], layout.systems[6], layout.systems[7]
 	check("focus above target", focus.anchorInfo.point == "BOTTOMLEFT" and focus.anchorInfo.offsetX == 130 and focus.anchorInfo.offsetY == 330)
 	check("party in the top-left corner", party.anchorInfo.point == "TOPLEFT" and party.anchorInfo.relativePoint == "TOPLEFT"
-		and party.anchorInfo.offsetX == 20 and party.anchorInfo.offsetY == -20 and not party.isInDefaultPosition)
+		and party.anchorInfo.offsetX == 20 and near(party.anchorInfo.offsetY, -20 - 63 * 1.15) and not party.isInDefaultPosition)
 	local partyValues = {}
 	for _, info in ipairs(party.settings) do partyValues[info.setting] = info.value end
-	check("party frames at 125%", partyValues[16] == 5 and partyValues[4] == 0)
+	check("party frames at 115%", partyValues[16] == 3 and partyValues[4] == 0)
 	check("raid in the top-left corner", raid.anchorInfo.point == "TOPLEFT" and raid.anchorInfo.relativeTo == "UIParent"
 		and raid.anchorInfo.relativePoint == "TOPLEFT" and raid.anchorInfo.offsetY == -20 and not raid.isInDefaultPosition)
 	local raidValues = {}
@@ -1926,7 +1931,9 @@ do
 	check("bars past Blizzard's frame are clickable", clicker and clicker.template == "SecureUnitButtonTemplate"
 		and clicker.parent == member and clicker.width == 80 and clicker.attributes.unit == "party1"
 		and clicker.attributes.type1 == "target" and clicker.attributes.type2 == "togglemenu" and clicker.shown == true)
-	check("long names cut at the bar's end", frame.health.name.points == 2 and frame.health.name.justify == "LEFT"
+	-- The mock counts every SetPoint; the party name's right end is set again to stop short of the role icon.
+	check("long names cut before the role icon", frame.health.name.points == 3 and frame.health.name.point[1] == "TOPRIGHT"
+		and frame.health.name.point[2] == -18 and frame.health.name.justify == "LEFT"
 		and unitFrame(state, "target").health.name.justify == "RIGHT")
 	check("party portrait on the left", frame.portrait.point[1] == "TOPLEFT" and frame.portrait.size[1] == 50)
 	check("party art faded", member.Texture.alpha == 0 and member.Portrait.alpha == 0 and member.Name.alpha == 0
@@ -1967,6 +1974,46 @@ do
 	local frame = unitFrame(state, "party1")
 	check("party joined after login gets a frame", frame ~= nil and env.partyMembers[1].Texture.alpha == 0
 		and frame.health.barValue == 80)
+end
+
+-- You in the party
+do
+	local state = { units = { player = mage } }
+	local env = boot(state)
+	local row
+	for _, f in ipairs(state.frames) do
+		if f.template == "SecureUnitButtonTemplate" and f.parent == env.PartyFrame then row = f end
+	end
+	check("a secure row for you on top of the party", row and row.attributes.unit == "player"
+		and row.attributes.type1 == "target" and row.attributes.type2 == "togglemenu"
+		and row.point[1] == "BOTTOMLEFT" and row.point[2] == env.PartyFrame and row.point[3] == "TOPLEFT" and row.point[5] == 10)
+	check("shown in a party, not in a raid", state.drivers[row] == "[group:raid] hide; [group:party] show; hide")
+	local drawn
+	for _, f in ipairs(state.frames) do
+		if f.unit == "player" and f.parent == row then drawn = f end
+	end
+	check("drawn like the party rows", drawn ~= nil and drawn.size[1] == 200)
+	state.roles = { player = "HEALER" }
+	fire(env, "PLAYER_ROLES_ASSIGNED")
+	check("role icon shown", drawn.role.atlas == "roleicon-tiny-healer" and drawn.role.shown == true)
+	state.roles = { player = "NONE" }
+	fire(env, "PLAYER_ROLES_ASSIGNED")
+	check("no role, no icon", drawn.role.shown == false)
+	state.roles = { player = SECRET }
+	fire(env, "PLAYER_ROLES_ASSIGNED")
+	check("a secret role hides the icon", drawn.role.shown == false)
+	state.raidStyleParty = true
+	env.PartyFrame:UpdatePartyFrames()
+	check("raid-style party frames have you already", state.drivers[row] == nil and row.shown == false)
+	state.raidStyleParty = false
+	state.combat = true
+	state.settings.customUnitFrames:SetValue(true)
+	check("not touched in combat", state.drivers[row] == nil)
+	state.combat = false
+	fire(env, "PLAYER_REGEN_ENABLED")
+	check("caught up after combat", state.drivers[row] ~= nil)
+	state.settings.customUnitFrames:SetValue(false)
+	check("option off removes it", state.drivers[row] == nil and row.shown == false)
 end
 
 -- Threat glow
@@ -2156,7 +2203,7 @@ do
 	state.button.buttonClick()
 	local player, party = state.saved.layouts[4].systems[1], state.saved.layouts[4].systems[5]
 	check("converted positions land where they were", near(player.anchorInfo.offsetX, -130) and near(player.anchorInfo.offsetY, 220)
-		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20))
+		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20 - 63 * 1.15))
 	check("reference screen keeps 100%", player.settings[1].value == 0)
 end
 
@@ -2190,7 +2237,7 @@ do
 	state.button.buttonClick()
 	local player, party = state.saved.layouts[4].systems[1], state.saved.layouts[4].systems[5]
 	check("version 1 shares repaired", near(player.anchorInfo.offsetX, -130) and near(player.anchorInfo.offsetY, 220)
-		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20) and env.KSUIDB.positionsVersion == 2)
+		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20 - 63 * 1.15) and env.KSUIDB.positionsVersion == 2)
 	local frameY = env.KSUIDB.frameYPct
 	local again = layoutState({ savedDB = env.KSUIDB })
 	boot(again)

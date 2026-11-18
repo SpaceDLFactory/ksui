@@ -10,6 +10,8 @@ local WIDTH, HEIGHT = 224, 56
 -- Party frames get the full height so the name and the health number don't overlap, and run past Blizzard's
 -- 120-wide frame to the right so the bars have room.
 local PARTY_WIDTH, PARTY_HEIGHT = 200, 52
+-- Blizzard_UnitFrame/Shared/PartyFrame.xml stacks the members this far apart.
+local PARTY_SPACING = 10
 local POWER_HEIGHT = 12
 local GAP = 2
 local FLAT = "Interface\\ChatFrame\\ChatFrameBackground"
@@ -196,6 +198,32 @@ local function updatePortrait(frame)
 	end
 end
 
+-- Party rows show the group role with Blizzard's own small icons. A role can be secret for units whose identity is
+-- hidden in instances; the icon stays hidden then.
+local ROLE_ATLAS = { TANK = "roleicon-tiny-tank", HEALER = "roleicon-tiny-healer", DAMAGER = "roleicon-tiny-dps" }
+local ROLE_SIZE = 12
+
+local function updateRole(frame)
+	if not frame.role then
+		return
+	end
+	local role = UnitGroupRolesAssigned(frame.unit)
+	local atlas = not issecretvalue(role) and ROLE_ATLAS[role]
+	frame.role:SetShown(atlas ~= nil and atlas ~= false)
+	if atlas then
+		frame.role:SetAtlas(atlas)
+	end
+end
+
+local function addRole(frame)
+	frame.role = frame.health:CreateTexture(nil, "OVERLAY")
+	frame.role:SetSize(ROLE_SIZE, ROLE_SIZE)
+	frame.role:SetPoint("TOPRIGHT", -3, -3)
+	-- The name stops short of it.
+	frame.health.name:SetPoint("TOPRIGHT", -(ROLE_SIZE + 6), -4)
+	frame.events:RegisterEvent("PLAYER_ROLES_ASSIGNED")
+end
+
 local function updateAll(frame)
 	if not UnitExists(frame.unit) then
 		return
@@ -205,6 +233,7 @@ local function updateAll(frame)
 	updateColor(frame)
 	updateName(frame)
 	updatePortrait(frame)
+	updateRole(frame)
 end
 
 local UPDATES = {
@@ -282,6 +311,39 @@ local function updateClicker(frame)
 	frame.clicker:SetShown(ns.db.customUnitFrames)
 end
 
+-- Blizzard's party frames leave you out, so a row for you goes on top of them, drawn like the others. It is a child
+-- of the party frame, so it shares its size, and a secure button of its own, so clicks target you and open your menu.
+-- It is kept out of Blizzard's layout, which would otherwise read KSUI's values while placing protected frames in
+-- combat; the layout moves the party frames down by one row instead.
+local partyPlayer
+
+local function buildPartyPlayer()
+	partyPlayer = CreateFrame("Button", "KSUIPartyPlayer", PartyFrame, "SecureUnitButtonTemplate")
+	partyPlayer:SetSize(PARTY_WIDTH, PARTY_HEIGHT)
+	partyPlayer:SetPoint("BOTTOMLEFT", PartyFrame, "TOPLEFT", 0, PARTY_SPACING)
+	partyPlayer:RegisterForClicks("AnyUp")
+	partyPlayer:SetAttribute("unit", "player")
+	partyPlayer:SetAttribute("type1", "target")
+	partyPlayer:SetAttribute("type2", "togglemenu")
+	local frame = build(partyPlayer, "player", false, PARTY_WIDTH, PARTY_HEIGHT, {})
+	listen(frame, "GROUP_ROSTER_UPDATE")
+	addRole(frame)
+end
+
+-- Shown in a party but not a raid, which has its own frames with you in them, nor with Blizzard's raid-style party
+-- frames, which have you in them too.
+local function refreshPartyPlayer()
+	if InCombatLockdown() then
+		return
+	end
+	if ns.db.customUnitFrames and not EditModeManagerFrame:UseRaidStylePartyFrames() then
+		RegisterStateDriver(partyPlayer, "visibility", "[group:raid] hide; [group:party] show; hide")
+	else
+		UnregisterStateDriver(partyPlayer, "visibility")
+		partyPlayer:Hide()
+	end
+end
+
 local function attachPartyFrames()
 	for member in PartyFrame.PartyMemberFramePool:EnumerateActive() do
 		local frame = partyFrames[member]
@@ -294,6 +356,7 @@ local function attachPartyFrames()
 			frame:ClearAllPoints()
 			frame:SetPoint("LEFT")
 			listen(frame, "GROUP_ROSTER_UPDATE")
+			addRole(frame)
 			hooksecurefunc(member.Portrait, "SetAlpha", keepPortraitHidden)
 			partyFrames[member] = frame
 		end
@@ -374,12 +437,16 @@ function ns.InitUnitFrames()
 		ns.RefreshUnitFrames()
 	end)
 	attachPartyFrames()
+	buildPartyPlayer()
+	-- Blizzard redraws the party when its style changes in Edit Mode.
+	hooksecurefunc(PartyFrame, "UpdatePartyFrames", refreshPartyPlayer)
 	local combatEnd = CreateFrame("Frame")
 	combatEnd:RegisterEvent("PLAYER_REGEN_ENABLED")
 	combatEnd:SetScript("OnEvent", function()
 		for _, frame in pairs(partyFrames) do
 			updateClicker(frame)
 		end
+		refreshPartyPlayer()
 	end)
 end
 
@@ -388,6 +455,7 @@ function ns.RefreshUnitFrames()
 	for _, frame in pairs(partyFrames) do
 		updateClicker(frame)
 	end
+	refreshPartyPlayer()
 	for _, frame in ipairs(frames) do
 		for _, part in ipairs(frame.blizzardParts) do
 			part:SetAlpha(custom and 0 or 1)
