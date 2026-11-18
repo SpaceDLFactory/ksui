@@ -582,7 +582,7 @@ local function world(state)
 		EditModeObjectiveTrackerSetting = { Height = 0, Opacity = 1 },
 		EditModeUnitFrameSystemIndices = { Player = 1, Target = 2, Focus = 3, Party = 4, Raid = 5, Boss = 6 },
 		EditModeLayoutType = { Preset = 0, Account = 1, Character = 2 },
-		EditModeUnitFrameSetting = { ViewRaidSize = 9, FrameWidth = 10, FrameHeight = 11, RaidGroupDisplayType = 13, RowSize = 15, FrameSize = 16 },
+		EditModeUnitFrameSetting = { UseRaidStylePartyFrames = 4, ViewRaidSize = 9, FrameWidth = 10, FrameHeight = 11, RaidGroupDisplayType = 13, RowSize = 15, FrameSize = 16 },
 		RaidGroupDisplayType = { SeparateGroupsVertical = 0, CombineGroupsHorizontal = 3 },
 		PowerType = { Mana = 0, Rage = 1 },
 		ViewRaidSize = { Ten = 0, Forty = 2 },
@@ -1061,10 +1061,10 @@ do
 	local focus, party, raid, boss = layout.systems[3], layout.systems[5], layout.systems[6], layout.systems[7]
 	check("focus above target", focus.anchorInfo.point == "BOTTOMLEFT" and focus.anchorInfo.offsetX == 130 and focus.anchorInfo.offsetY == 330)
 	check("party in the top-left corner", party.anchorInfo.point == "TOPLEFT" and party.anchorInfo.relativePoint == "TOPLEFT"
-		and party.anchorInfo.offsetX == 20 and near(party.anchorInfo.offsetY, -20 - 63 * 1.15) and not party.isInDefaultPosition)
+		and party.anchorInfo.offsetX == 20 and near(party.anchorInfo.offsetY, -20) and not party.isInDefaultPosition)
 	local partyValues = {}
 	for _, info in ipairs(party.settings) do partyValues[info.setting] = info.value end
-	check("party frames at 115%", partyValues[16] == 3 and partyValues[4] == 0)
+	check("party frames raid-style, 115% if switched back", partyValues[16] == 3 and partyValues[4] == 1)
 	check("raid in the top-left corner", raid.anchorInfo.point == "TOPLEFT" and raid.anchorInfo.relativeTo == "UIParent"
 		and raid.anchorInfo.relativePoint == "TOPLEFT" and raid.anchorInfo.offsetY == -20 and not raid.isInDefaultPosition)
 	local raidValues = {}
@@ -1251,6 +1251,18 @@ do
 	} })
 	runLayout(state)
 	check("replacing own layout at the limit works", state.saved ~= nil and #state.saved.layouts == 5)
+end
+
+-- Blizzard's own party frames instead: room is left above them for KSUI's row for you.
+do
+	local state = layoutState()
+	state.savedDB.raidStyleParty = false
+	runLayout(state)
+	local party = state.saved.layouts[4].systems[5]
+	local values = {}
+	for _, info in ipairs(party.settings) do values[info.setting] = info.value end
+	check("without raid-style, a row's room above the party", values[4] == 0
+		and near(party.anchorInfo.offsetY, -20 - 63 * 1.15))
 end
 
 -- Auto apply after an update
@@ -2257,7 +2269,7 @@ do
 	state.button.buttonClick()
 	local player, party = state.saved.layouts[4].systems[1], state.saved.layouts[4].systems[5]
 	check("converted positions land where they were", near(player.anchorInfo.offsetX, -130) and near(player.anchorInfo.offsetY, 220)
-		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20 - 63 * 1.15))
+		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20))
 	check("reference screen keeps 100%", player.settings[1].value == 0)
 end
 
@@ -2291,7 +2303,7 @@ do
 	state.button.buttonClick()
 	local player, party = state.saved.layouts[4].systems[1], state.saved.layouts[4].systems[5]
 	check("version 1 shares repaired", near(player.anchorInfo.offsetX, -130) and near(player.anchorInfo.offsetY, 220)
-		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20 - 63 * 1.15) and env.KSUIDB.positionsVersion == 2)
+		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20) and env.KSUIDB.positionsVersion == 2)
 	local frameY = env.KSUIDB.frameYPct
 	local again = layoutState({ savedDB = env.KSUIDB })
 	boot(again)

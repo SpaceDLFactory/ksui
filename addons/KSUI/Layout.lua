@@ -12,8 +12,11 @@ local BARS_BESIDE_MINIMAP = 8
 local VIEWER_SPACING = 6
 -- Edit Mode saves the party frame size in 5% steps from 100%, so 3 steps is 115%.
 local PARTY_SIZE_STEPS = 3
--- KSUI puts a row for you above the party (UnitFrames.lua): Blizzard's 53-tall member frame and its 10 spacing, at
--- the party's size.
+-- Blizzard's raid-style party frames show incoming heals, shields, your heals over time, dispellable debuffs and
+-- aggro, and have you in them; they are used by default. Their width and height are saved as steps up from 72 x 36.
+local PARTY_RAID_STYLE_WIDTH, PARTY_RAID_STYLE_HEIGHT = 144 - 72, 64 - 36
+-- Without them KSUI puts a row for you above the party (UnitFrames.lua): Blizzard's 53-tall member frame and its 10
+-- spacing, at the party's size.
 local PARTY_PLAYER_ROW = (53 + 10) * (1 + PARTY_SIZE_STEPS / 20)
 -- A screen taller in UI units than the reference (measured: the 224-unit player frame is 405 pixels on it) makes
 -- everything smaller, so the player and target frames grow by the same ratio, up to Edit Mode's 200%.
@@ -106,8 +109,14 @@ local function moveFrames(layout)
 			[units.Boss] = { anchor("BOTTOMRIGHT", "ObjectiveTrackerFrame", "TOPLEFT", -10, 0) },
 			-- Party and raid are the only frames at the top. Blizzard requires a TOPLEFT anchor for them.
 			[units.Party] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", groupX,
-				-groupTop - (db.customUnitFrames and PARTY_PLAYER_ROW or 0)), function(system)
-				setValues(system, { [Enum.EditModeUnitFrameSetting.FrameSize] = PARTY_SIZE_STEPS })
+				-groupTop - ((db.customUnitFrames and not db.raidStyleParty) and PARTY_PLAYER_ROW or 0)), function(system)
+				local settings = Enum.EditModeUnitFrameSetting
+				setValues(system, {
+					[settings.FrameSize] = PARTY_SIZE_STEPS,
+					[settings.UseRaidStylePartyFrames] = db.raidStyleParty and 1 or 0,
+					[settings.FrameWidth] = PARTY_RAID_STYLE_WIDTH,
+					[settings.FrameHeight] = PARTY_RAID_STYLE_HEIGHT,
+				})
 			end },
 			[units.Raid] = { anchor("TOPLEFT", "UIParent", "TOPLEFT", groupX, -groupTop), applyFortyPlayerSettings },
 		},

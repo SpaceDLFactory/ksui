@@ -19,6 +19,7 @@ local OPTIONS = {
 	{ header = "파티/공격대" },
 	{ key = "raidClassColors", label = "공격대 프레임 직업색", default = true, refresh = "RefreshCVars" },
 	-- Off by default: debuffs nobody can remove, like a priest's Weakened Soul, matter too.
+	{ key = "raidStyleParty", label = "파티를 공격대 스타일로 (힐 예측·지속 힐·어그로, 화면 배치 적용 필요)", default = true },
 	{ key = "dispellableOnly", label = "해제할 수 있는 디버프만 표시", default = false, refresh = "RefreshCVars" },
 	{ header = "전투 보조" },
 	{ key = "cooldownManager", label = "직업별 쿨다운·버프 표시 (쿨다운 관리자)", default = true, refresh = "RefreshCVars" },
