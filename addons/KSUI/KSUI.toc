@@ -2,7 +2,7 @@
 ## Title: 검성UI
 ## IconTexture: Interface\AddOns\KSUI\icon
 ## Notes: Configurable dark reskin of the default unit frames and action bars for WoW Forever.
-## Version: 0.13.1
+## Version: 0.13.2
 ## SavedVariables: KSUIDB
 ## X-License: GPL-3.0-or-later
 ## X-Curse-Project-ID: 1809000
