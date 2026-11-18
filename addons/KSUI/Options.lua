@@ -9,7 +9,7 @@ local OPTIONS = {
 	{ key = "healthPercent", label = "체력바에 퍼센트 표시", default = true, refresh = "RefreshHealthPercent" },
 	{ key = "cropIcons", label = "아이콘 테두리 잘라내기", default = true, refresh = "RefreshSkin" },
 	{ key = "squareMinimap", label = "미니맵 네모로", default = true, refresh = "RefreshMinimap" },
-	{ key = "customUnitFrames", label = "내/대상/주시 프레임 네모로", default = true, refresh = "RefreshUnitFrames" },
+	{ key = "customUnitFrames", label = "내/대상/주시 프레임 네모로", default = true, refresh = "RefreshUnitFrames", layout = true },
 	{ key = "animatedPortraits", label = "움직이는 초상화", default = true, refresh = "RefreshUnitFrames" },
 	-- Blizzard's own look comes back only when it restyles a plate, so turning this off needs a reload.
 	{ key = "flatNameplates", label = "이름표 납작하게 (끌 때는 /reload)", default = true },
@@ -19,7 +19,7 @@ local OPTIONS = {
 	{ header = "파티/공격대" },
 	{ key = "raidClassColors", label = "공격대 프레임 직업색", default = true, refresh = "RefreshCVars" },
 	-- Off by default: debuffs nobody can remove, like a priest's Weakened Soul, matter too.
-	{ key = "raidStyleParty", label = "파티를 공격대 스타일로 (힐 예측·지속 힐·어그로, 화면 배치 적용 필요)", default = true },
+	{ key = "raidStyleParty", label = "파티를 블리자드 공격대 스타일로", default = false, layout = true },
 	{ key = "dispellableOnly", label = "해제할 수 있는 디버프만 표시", default = false, refresh = "RefreshCVars" },
 	{ header = "전투 보조" },
 	{ key = "cooldownManager", label = "직업별 쿨다운·버프 표시 (쿨다운 관리자)", default = true, refresh = "RefreshCVars" },
@@ -55,10 +55,10 @@ local OPTIONS = {
 	{ header = "프레임 위치" },
 	-- Shares of the screen, so a different screen size or UI scale keeps the same arrangement. The defaults are the
 	-- old 130, 220, 20 and 20 UI units on the 2133 x 1200 screen KSUI was tuned on.
-	{ key = "frameXPct", label = "내/대상 프레임 중앙 거리 (화면 폭 %)", default = 6.1, min = 0, max = 30, step = 0.1 },
-	{ key = "frameYPct", label = "내/대상 프레임 높이 (화면 높이 %)", default = 18.3, min = 5, max = 50, step = 0.1 },
-	{ key = "groupXPct", label = "파티/공격대 왼쪽 여백 (화면 폭 %)", default = 0.9, min = 0, max = 50, step = 0.1 },
-	{ key = "groupTopPct", label = "파티/공격대 위쪽 여백 (화면 높이 %)", default = 1.7, min = 0, max = 50, step = 0.1 },
+	{ key = "frameXPct", label = "내/대상 프레임 중앙 거리 (화면 폭 %)", default = 6.1, min = 0, max = 30, step = 0.1, layout = true },
+	{ key = "frameYPct", label = "내/대상 프레임 높이 (화면 높이 %)", default = 18.3, min = 5, max = 50, step = 0.1, layout = true },
+	{ key = "groupXPct", label = "파티/공격대 왼쪽 여백 (화면 폭 %)", default = 0.9, min = 0, max = 50, step = 0.1, layout = true },
+	{ key = "groupTopPct", label = "파티/공격대 위쪽 여백 (화면 높이 %)", default = 1.7, min = 0, max = 50, step = 0.1, layout = true },
 }
 
 local VAR_TYPES = { boolean = "Boolean", number = "Number", string = "String" }
@@ -106,8 +106,16 @@ function ns.RegisterOptions()
 			local varType = Settings.VarType[VAR_TYPES[type(option.default)]]
 			local setting = Settings.RegisterAddOnSetting(
 				category, "KSUI_" .. option.key, option.key, ns.db, varType, option.label, option.default)
-			if option.refresh then
-				setting:SetValueChangedCallback(ns[option.refresh])
+			if option.refresh or option.layout then
+				setting:SetValueChangedCallback(function(...)
+					if option.refresh then
+						ns[option.refresh](...)
+					end
+					-- Positions and party style go through Edit Mode, applied when the settings window closes.
+					if option.layout then
+						ns.LayoutSettingChanged()
+					end
+				end)
 			end
 			addControl(category, setting, option)
 		end

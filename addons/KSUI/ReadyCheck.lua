@@ -10,16 +10,24 @@ local RAID_BUFFS = {
 }
 local MAX_AURAS = 40
 
-local function groupClasses()
-	local classes = {}
-	local prefix, count = "party", GetNumGroupMembers() - 1
+-- Everyone in the group, you included. A raid's raidN units already include you.
+local function groupUnits()
 	if IsInRaid() then
-		prefix, count = "raid", GetNumGroupMembers()
+		local units = {}
+		for i = 1, GetNumGroupMembers() do
+			units[#units + 1] = "raid" .. i
+		end
+		return units
 	end
 	local units = { "player" }
-	for i = 1, count do
-		units[#units + 1] = prefix .. i
+	for i = 1, GetNumGroupMembers() - 1 do
+		units[#units + 1] = "party" .. i
 	end
+	return units
+end
+
+local function groupClasses(units)
+	local classes = {}
 	for _, unit in ipairs(units) do
 		local _, class = UnitClass(unit)
 		-- Secrecy is checked before the class is tested, as in Skin.lua.
@@ -30,11 +38,11 @@ local function groupClasses()
 	return classes
 end
 
--- Returns nil when the game hides your auras from addons.
-local function playerBuffNames()
+-- Returns nil when the game hides the unit's auras from addons.
+local function buffNames(unit)
 	local names = {}
 	for i = 1, MAX_AURAS do
-		local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
+		local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
 		-- The result itself is checked before it is tested or indexed.
 		if issecretvalue(aura) then
 			return nil
@@ -50,38 +58,56 @@ local function playerBuffNames()
 	return names
 end
 
+-- For each buff wanted in this group, the names of those without it, and how many members couldn't be checked.
 local function missingBuffs()
-	local have = playerBuffNames()
-	if not have then
-		return nil
-	end
-	local classes = groupClasses()
-	local usesMana = UnitPowerType("player") == Enum.PowerType.Mana
-	local missing = {}
-	for _, buff in ipairs(RAID_BUFFS) do
-		if classes[buff.class] and (usesMana or not buff.manaOnly) then
-			local found, label = false, nil
-			for _, spell in ipairs(buff.spells) do
-				local name = C_Spell.GetSpellName(spell)
-				label = label or name
-				found = found or (name ~= nil and have[name] == true)
-			end
-			if label and not found then
-				missing[#missing + 1] = label
+	local units = groupUnits()
+	local classes = groupClasses(units)
+	local missing, unreadable = {}, 0
+	for _, unit in ipairs(units) do
+		local name = UnitName(unit)
+		-- Members who are offline or dead can't take a buff now.
+		if UnitExists(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit) then
+			local have = buffNames(unit)
+			if not have or issecretvalue(name) then
+				unreadable = unreadable + 1
+			else
+				local usesMana = UnitPowerType(unit) == Enum.PowerType.Mana
+				for _, buff in ipairs(RAID_BUFFS) do
+					if classes[buff.class] and (usesMana or not buff.manaOnly) then
+						local found, label = false, nil
+						for _, spell in ipairs(buff.spells) do
+							local spellName = C_Spell.GetSpellName(spell)
+							label = label or spellName
+							found = found or (spellName ~= nil and have[spellName] == true)
+						end
+						if label and not found then
+							missing[label] = missing[label] or {}
+							table.insert(missing[label], name)
+						end
+					end
+				end
 			end
 		end
 	end
-	return missing
+	return missing, unreadable
 end
 
 function ns.OnReadyCheck()
 	if not ns.db.buffCheck then
 		return
 	end
-	local missing = missingBuffs()
-	if not missing then
-		print("검성UI: 지금은 버프를 확인할 수 없습니다.")
-	elseif #missing > 0 then
-		print("검성UI 준비 확인: 빠진 버프 - " .. table.concat(missing, ", "))
+	local missing, unreadable = missingBuffs()
+	local lines = {}
+	for _, buff in ipairs(RAID_BUFFS) do
+		local label = C_Spell.GetSpellName(buff.spells[1])
+		if label and missing[label] then
+			lines[#lines + 1] = label .. ": " .. table.concat(missing[label], ", ")
+		end
+	end
+	if #lines > 0 then
+		print("검성UI 준비 확인: 빠진 버프 - " .. table.concat(lines, " / "))
+	end
+	if unreadable > 0 then
+		print(("검성UI 준비 확인: %d명은 지금 버프를 확인할 수 없습니다."):format(unreadable))
 	end
 end

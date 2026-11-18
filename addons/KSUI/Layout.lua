@@ -12,8 +12,8 @@ local BARS_BESIDE_MINIMAP = 8
 local VIEWER_SPACING = 6
 -- Edit Mode saves the party frame size in 5% steps from 100%, so 3 steps is 115%.
 local PARTY_SIZE_STEPS = 3
--- Blizzard's raid-style party frames show incoming heals, shields, your heals over time, dispellable debuffs and
--- aggro, and have you in them; they are used by default. Their width and height are saved as steps up from 72 x 36.
+-- Blizzard's raid-style party frames, if chosen in the settings. Their width and height are saved as steps up from
+-- 72 x 36.
 local PARTY_RAID_STYLE_WIDTH, PARTY_RAID_STYLE_HEIGHT = 144 - 72, 64 - 36
 -- Without them KSUI puts a row for you above the party (UnitFrames.lua): Blizzard's 53-tall member frame and its 10
 -- spacing, at the party's size.
@@ -228,7 +228,21 @@ function ns.PlaceAlerts()
 end
 
 -- Saves a copy of the active layout with the frames moved, then reloads to clear addon taint from Edit Mode.
-function ns.ApplyLayout()
+-- Blizzard lets the UI reload only right after a click or key press. Applying from a command or button reloads at
+-- once; applying on its own (at login, or when the settings window closes) asks with a button instead.
+StaticPopupDialogs.KSUI_RELOAD = {
+	text = "검성UI: 화면 배치를 저장했습니다. 적용하려면 UI를 다시 불러와야 합니다.",
+	button1 = "다시 불러오기",
+	button2 = "나중에",
+	OnAccept = function()
+		ReloadUI()
+	end,
+	timeout = 0,
+	whileDead = true,
+	hideOnEscape = true,
+}
+
+local function applyLayout(askToReload)
 	if InCombatLockdown() then
 		print("검성UI: 전투 중에는 레이아웃을 바꿀 수 없습니다.")
 		return
@@ -277,23 +291,59 @@ function ns.ApplyLayout()
 	C_EditMode.SaveLayouts(info)
 	C_EditMode.SetActiveLayout(slot)
 	ns.db.layoutVersion = C_AddOns.GetAddOnMetadata(addonName, "Version")
-	ReloadUI()
+	if askToReload then
+		StaticPopup_Show("KSUI_RELOAD")
+	else
+		ReloadUI()
+	end
 end
 
--- After an update the KSUI layout is laid out again at login, so new placements arrive without a click. Only while the
--- KSUI layout is the active one: a player who switched to another layout keeps it. The saved layouts arrive with
--- EDIT_MODE_LAYOUTS_UPDATED, which Edit Mode handles first; this waits a frame after it.
+function ns.ApplyLayout()
+	applyLayout(false)
+end
+
+-- The layout is laid out at login on a first install and after an update, so placements arrive without a click.
+-- After an update only while the KSUI layout is the active one: a player who switched to another layout keeps it.
+-- The saved layouts arrive with EDIT_MODE_LAYOUTS_UPDATED, which Edit Mode handles first; this waits a frame after it.
 local function autoApply()
 	local version = C_AddOns.GetAddOnMetadata(addonName, "Version")
 	if ns.db.layoutVersion == version or InCombatLockdown() then
+		return
+	end
+	if ns.db.layoutVersion == nil then
+		print("검성UI: 화면 배치를 처음 적용합니다.")
+		applyLayout(true)
 		return
 	end
 	local info = C_EditMode.GetLayouts()
 	local active = info.layouts[info.activeLayout - #EditModePresetLayoutManager:GetCopyOfPresetLayouts()]
 	if active and active.layoutName == LAYOUT_NAME and active.layoutType == Enum.EditModeLayoutType.Account then
 		print("검성UI: 새 버전의 화면 배치를 적용합니다.")
-		ns.ApplyLayout()
+		applyLayout(true)
 	end
+end
+
+-- Settings that change the layout are applied once the settings window closes, not at every slider step, since
+-- applying reloads the UI. In combat it waits for the fight to end.
+local layoutChanged = false
+
+function ns.LayoutSettingChanged()
+	layoutChanged = true
+end
+
+local function applyChangedLayout()
+	if layoutChanged and not InCombatLockdown() then
+		layoutChanged = false
+		print("검성UI: 바뀐 위치 설정을 적용합니다.")
+		applyLayout(true)
+	end
+end
+
+function ns.InitLayoutSettings()
+	SettingsPanel:HookScript("OnHide", applyChangedLayout)
+	local combatEnd = CreateFrame("Frame")
+	combatEnd:RegisterEvent("PLAYER_REGEN_ENABLED")
+	combatEnd:SetScript("OnEvent", applyChangedLayout)
 end
 
 local layoutsLoaded = CreateFrame("Frame")

@@ -190,6 +190,8 @@ local function world(state)
 		function f:SetHeight(h) self.height = h end
 		function f:EnableMouse(v) self.mouse = v end
 		function f:SetFrameLevel(l) self.level = l end
+		function f:SetHideCountdownNumbers(v) self.hideNumbers = v end
+		function f:Clear() self.duration = nil end
 		function f:GetFrameLevel() return self.level or 1 end
 		function f:IsShown() return self.shown ~= false end
 		function f:SetStatusBarColor(r, g, b) self.color = { r, g, b } end
@@ -267,13 +269,24 @@ local function world(state)
 	function env.UnitIsPlayer(u) return state.units[u].player end
 	function env.UnitClass(u) return "Localized", state.units[u] and state.units[u].class end
 	function env.UnitAffectingCombat() return state.combat end
-	function env.UnitPowerType() return state.powerType or 0, state.powerToken or "MANA" end
+	function env.UnitPowerType(u) return (u and state.units[u] and state.units[u].powerType) or state.powerType or 0,
+		state.powerToken or "MANA" end
+	function env.UnitIsConnected(u) return not state.units[u].offline end
+	function env.UnitIsDeadOrGhost(u) return state.units[u].dead == true end
 	-- state.units[u] may carry health, maxHealth, power, level, name, far, hiddenIdentity; SECRET stands in for any of them.
 	local function field(u, key, default) local v = state.units[u][key]; if v == nil then return default end; return v end
 	function env.UnitHealth(u) return field(u, "health", 80) end
 	function env.UnitHealthMax(u) return field(u, "maxHealth", 100) end
 	function env.UnitGetTotalAbsorbs(u) return field(u, "absorb", 0) end
 	function env.UnitGetIncomingHeals(u) return field(u, "incomingHeal", nil) end
+	-- state.myAuras[unit] = { { icon, auraInstanceID }, ... } or SECRET for a table that can't be read.
+	env.C_UnitAuras = {
+		GetUnitAuras = function(unit, filter, max)
+			assert(filter == "HELPFUL")
+			return (state.myAuras or {})[unit] or {}
+		end,
+		GetAuraDuration = function(unit, id) return { unit = unit, id = id } end,
+	}
 	function env.UnitHealthPercent(u, predicted, curve)
 		assert(predicted == true and curve == env.CurveConstants.ScaleTo100)
 		local h = field(u, "health", 80)
@@ -515,17 +528,20 @@ local function world(state)
 	-- Real rank 1 IDs map to Korean names; an ID missing from the game returns nil.
 	local SPELLS = { [1243] = "신의 권능: 인내", [21562] = "인내의 기원", [1126] = "야생의 징표", [21849] = "야생의 선물",
 		[1459] = "신비한 지능", [23028] = "신비한 총명함",
-		[853] = "심판의 망치", [5588] = "심판의 망치", [20271] = "심판" }
+		[853] = "심판의 망치", [5588] = "심판의 망치", [20271] = "심판",
+		[17] = "신의 권능: 보호막", [139] = "소생", [774] = "회복" }
 	env.C_Spell = { GetSpellName = function(id) return SPELLS[id] end,
 		-- Like the client: icon, original icon, conditional icon.
 		GetSpellTexture = function(id) return "tex" .. tostring(id), 1, 2 end }
-	env.C_UnitAuras = { GetAuraDataByIndex = function(unit, i, filter)
-		assert(unit == "player" and filter == "HELPFUL")
-		local name = (state.auras or {})[i]
+	-- state.auras are your buffs; state.unitAuras[unit] anyone else's.
+	function env.C_UnitAuras.GetAuraDataByIndex(unit, i, filter)
+		assert(filter == "HELPFUL")
+		local list = (state.unitAuras or {})[unit] or (env.UnitIsUnit(unit, "player") and state.auras) or {}
+		local name = list[i]
 		if name == "SECRET_RESULT" then return SECRET end
 		if name == "LOCKED" then return { name = "x", locked = true } end
 		return name and { name = name } or nil
-	end }
+	end
 	state.sold, state.repaired = 0, 0
 	env.C_MerchantFrame = {
 		IsSellAllJunkEnabled = function() return true end,
@@ -655,13 +671,22 @@ local function world(state)
 		env["Boss" .. i .. "TargetFrame"] = { TargetFrameContainer = { FrameTexture = texture() } }
 	end
 	local function partyMember(i)
-		return { unitToken = "party" .. i, GetWidth = function() return 120 end, Texture = texture(), VehicleTexture = texture(), Flash = texture(),
-			Portrait = texture(), Name = texture(), HealthBarContainer = alphaFrame(), ManaBar = alphaFrame() }
+		local member = { unitToken = "party" .. i, GetWidth = function() return 120 end, Texture = texture(), VehicleTexture = texture(), Flash = texture(),
+			Portrait = texture(), Name = texture(), HealthBarContainer = alphaFrame(), ManaBar = alphaFrame(),
+			AuraFrameContainer = texture() }
+		-- Blizzard's art update sets the glow back to its own spot, as in Blizzard_UnitFrame/Mainline/PartyMemberFrame.lua.
+		function member:ToPlayerArt() self.Flash:SetAtlas("ui-hud-unitframe-party-portraiton-incombat"); self.Flash:SetPoint("TOPLEFT", self) end
+		function member:ToVehicleArt() end
+		function member:ToCharacterStyleArt() end
+		function member:UpdateArt() self:ToPlayerArt() end
+		return member
 	end
 	local partyMembers = state.noParty and {} or { partyMember(1), partyMember(2) }
 	env.partyMembers = partyMembers
 	env.newPartyMember = partyMember
 	env.EditModeManagerFrame = { UseRaidStylePartyFrames = function() return state.raidStyleParty end }
+	env.SettingsPanel = { hooks = {} }
+	function env.SettingsPanel:HookScript(name, fn) self.hooks[name] = fn end
 	env.PartyFrame = { InitializePartyMemberFrames = function() end, UpdatePartyFrames = function() end, PartyMemberFramePool = {
 		EnumerateActive = function()
 			local i = 0
@@ -1061,10 +1086,10 @@ do
 	local focus, party, raid, boss = layout.systems[3], layout.systems[5], layout.systems[6], layout.systems[7]
 	check("focus above target", focus.anchorInfo.point == "BOTTOMLEFT" and focus.anchorInfo.offsetX == 130 and focus.anchorInfo.offsetY == 330)
 	check("party in the top-left corner", party.anchorInfo.point == "TOPLEFT" and party.anchorInfo.relativePoint == "TOPLEFT"
-		and party.anchorInfo.offsetX == 20 and near(party.anchorInfo.offsetY, -20) and not party.isInDefaultPosition)
+		and party.anchorInfo.offsetX == 20 and near(party.anchorInfo.offsetY, -20 - 63 * 1.15) and not party.isInDefaultPosition)
 	local partyValues = {}
 	for _, info in ipairs(party.settings) do partyValues[info.setting] = info.value end
-	check("party frames raid-style, 115% if switched back", partyValues[16] == 3 and partyValues[4] == 1)
+	check("party frames at 115%, raid-style off", partyValues[16] == 3 and partyValues[4] == 0)
 	check("raid in the top-left corner", raid.anchorInfo.point == "TOPLEFT" and raid.anchorInfo.relativeTo == "UIParent"
 		and raid.anchorInfo.relativePoint == "TOPLEFT" and raid.anchorInfo.offsetY == -20 and not raid.isInDefaultPosition)
 	local raidValues = {}
@@ -1253,16 +1278,56 @@ do
 	check("replacing own layout at the limit works", state.saved ~= nil and #state.saved.layouts == 5)
 end
 
--- Blizzard's own party frames instead: room is left above them for KSUI's row for you.
+-- First install, and settings changed in the panel. Blizzard allows a reload only right after a click, so these save
+-- the layout and ask with a button.
+local function askedToReload(state)
+	local last = state.popups[#state.popups]
+	return last ~= nil and last[1] == "KSUI_RELOAD" and not state.reloaded
+end
+
+do
+	local state = layoutState({ active = 2 })
+	local env = boot(state)
+	fire(env, "EDIT_MODE_LAYOUTS_UPDATED")
+	for _, timer in ipairs(state.timers) do timer() end
+	check("a first install lays out without a command", state.saved ~= nil and askedToReload(state))
+	env.StaticPopupDialogs.KSUI_RELOAD.OnAccept()
+	check("the button reloads", state.reloaded)
+
+	state = layoutState({ active = 4, layouts = { { layoutName = "KSUI", layoutType = 1, systems = systems(5) } } })
+	state.savedDB.layoutVersion = "0.11.0"
+	env = boot(state)
+	state.settings.frameYPct:SetValue(25)
+	state.settings.frameYPct:SetValue(26)
+	check("slider steps don't apply", state.saved == nil)
+	env.SettingsPanel.hooks.OnHide()
+	check("closing the settings applies them once", state.saved ~= nil and askedToReload(state))
+	state.saved = nil
+	env.SettingsPanel.hooks.OnHide()
+	check("nothing changed, nothing applied", state.saved == nil)
+	state.settings.fadeAlpha:SetValue(0.5)
+	env.SettingsPanel.hooks.OnHide()
+	check("other settings don't touch the layout", state.saved == nil)
+	state.combat = true
+	state.settings.raidStyleParty:SetValue(false)
+	env.SettingsPanel.hooks.OnHide()
+	check("not in combat", state.saved == nil)
+	state.combat = false
+	fire(env, "PLAYER_REGEN_ENABLED")
+	check("after the fight instead", state.saved ~= nil)
+	env.SlashCmdList.KSUI("layout")
+	check("the command still reloads at once", state.reloaded)
+end
+
+-- Blizzard's raid-style party frames instead: they have you in them, so no room is left for KSUI's row.
 do
 	local state = layoutState()
-	state.savedDB.raidStyleParty = false
+	state.savedDB.raidStyleParty = true
 	runLayout(state)
 	local party = state.saved.layouts[4].systems[5]
 	local values = {}
 	for _, info in ipairs(party.settings) do values[info.setting] = info.value end
-	check("without raid-style, a row's room above the party", values[4] == 0
-		and near(party.anchorInfo.offsetY, -20 - 63 * 1.15))
+	check("raid-style when chosen, without the row's room", values[4] == 1 and near(party.anchorInfo.offsetY, -20))
 end
 
 -- Auto apply after an update
@@ -1274,7 +1339,7 @@ do
 	check("nothing before Edit Mode has the layouts", not state.reloaded)
 	fire(env, "EDIT_MODE_LAYOUTS_UPDATED")
 	for _, timer in ipairs(state.timers) do timer() end
-	check("update re-applies the active KSUI layout", state.reloaded and state.saved ~= nil
+	check("update re-applies the active KSUI layout", askedToReload(state) and state.saved ~= nil
 		and state.saved.layouts[4].layoutName == "KSUI" and state.savedDB.layoutVersion == "0.11.0")
 
 	state = layoutState({ active = 4, layouts = layouts })
@@ -1284,6 +1349,7 @@ do
 	check("same version leaves it alone", not state.reloaded and state.saved == nil)
 
 	state = layoutState({ active = 4, layouts = { { layoutName = "Mine", layoutType = 1, systems = systems(5) } } })
+	state.savedDB.layoutVersion = "0.10.0"
 	fire(boot(state), "EDIT_MODE_LAYOUTS_UPDATED")
 	for _, timer in ipairs(state.timers) do timer() end
 	check("another active layout is left alone", not state.reloaded and state.saved == nil)
@@ -1396,49 +1462,64 @@ do
 	check("toggles off", state.sold == 2 and state.repaired == 1)
 end
 
--- Ready check
+-- Ready check: everyone's buffs, named by who is missing what.
 do
-	local units = { player = { player = true, class = "PALADIN" } }
+	local units = {
+		player = { player = true, class = "PALADIN", name = "Me" },
+		raid2 = { player = true, class = "MAGE", name = "Mage" },
+		raid3 = { player = true, class = "PRIEST", name = "Priest", powerType = 0 },
+		raid4 = { player = true, class = "WARRIOR", name = "Warrior", powerType = 1 },
+		raid5 = { player = true, class = SECRET, name = "Hidden" },
+		raid6 = { player = true, class = "ROGUE", name = "Gone", offline = true },
+	}
 	units.raid1 = units.player
-	units.raid2 = { player = true, class = "MAGE" }
-	units.raid3 = { player = true, class = "PRIEST" }
-	units.raid4 = { player = true, class = SECRET }
-	local state = { units = units, raid = true, groupSize = 4, auras = { "인내의 기원", "축복" } }
+	local state = { units = units, raid = true, groupSize = 6, unitAuras = {
+		raid1 = { "인내의 기원", "신비한 지능" },
+		raid2 = { "인내의 기원" },
+		raid3 = { "신의 권능: 인내", "신비한 총명함" },
+		raid4 = {},
+		raid5 = { SECRET },
+	} }
 	local env = boot(state)
-	state.printed = nil
+	local printed = {}
+	env.print = function(text) printed[#printed + 1] = text end
 	fire(env, "READY_CHECK")
-	check("missing mage buff reported", state.printed ~= nil and state.printed:find("신비한 지능", 1, true) ~= nil)
-	check("group version counts as the buff", not state.printed:find("인내", 1, true))
-	check("class not in raid not asked for", not state.printed:find("야생", 1, true))
-	state.auras = { "신비한 총명함", "신의 권능: 인내" }
-	state.printed = nil
+	local report = table.concat(printed, "\n")
+	check("missing buffs named per member", report:find("인내: Warrior", 1, true) ~= nil
+		and report:find("신비한 지능: Mage", 1, true) ~= nil)
+	check("group versions count, and intellect isn't asked of a warrior", not report:find("Priest", 1, true)
+		and not report:find("지능: Mage, Warrior", 1, true) and not report:find("Me", 1, true))
+	check("class not in the group not asked for", not report:find("야생", 1, true))
+	check("offline members skipped", not report:find("Gone", 1, true))
+	check("unreadable members counted, not guessed", report:find("1명은 지금 버프를 확인할 수 없습니다", 1, true) ~= nil
+		and not report:find("Hidden", 1, true))
+
+	state.unitAuras.raid5 = { "SECRET_RESULT" }
+	printed = {}
 	fire(env, "READY_CHECK")
-	check("all buffs present stays quiet", state.printed == nil)
-	state.auras = {}
-	state.powerType = 1
+	check("secret aura result not tested", table.concat(printed):find("1명은", 1, true) ~= nil)
+	state.unitAuras.raid5 = { "LOCKED" }
+	printed = {}
 	fire(env, "READY_CHECK")
-	check("intellect skipped without mana", state.printed ~= nil and not state.printed:find("지능", 1, true)
-		and state.printed:find("인내", 1, true) ~= nil)
-	state.auras = { SECRET }
+	check("locked aura table not indexed", table.concat(printed):find("1명은", 1, true) ~= nil)
+
+	state.unitAuras = { raid1 = { "인내의 기원", "신비한 지능" }, raid2 = { "인내의 기원" },
+		raid3 = { "인내의 기원", "신비한 지능" }, raid4 = { "인내의 기원" }, raid5 = { "인내의 기원" } }
+	units.raid5.class = "PRIEST"
+	printed = {}
 	fire(env, "READY_CHECK")
-	check("secret auras reported as unreadable", state.printed:find("확인할 수 없", 1, true) ~= nil)
-	state.auras, state.printed = { "SECRET_RESULT" }, nil
-	fire(env, "READY_CHECK")
-	check("secret aura result not tested", state.printed ~= nil and state.printed:find("확인할 수 없", 1, true) ~= nil)
-	state.auras, state.printed = { "LOCKED" }, nil
-	fire(env, "READY_CHECK")
-	check("locked aura table not indexed", state.printed ~= nil and state.printed:find("확인할 수 없", 1, true) ~= nil)
-	state.printed = nil
+	check("everyone buffed stays quiet", #printed == 1 and printed[1]:find("신비한 지능: Mage", 1, true) ~= nil)
 	state.settings.buffCheck:SetValue(false)
+	printed = {}
 	fire(env, "READY_CHECK")
-	check("buff check toggle off", state.printed == nil)
+	check("buff check toggle off", #printed == 0)
 end
 
 do
-	local state = { units = { player = { player = true, class = "DRUID" } }, groupSize = 0, auras = {} }
+	local state = { units = { player = { player = true, class = "DRUID", name = "Me" } }, groupSize = 0, auras = {} }
 	local env = boot(state)
 	fire(env, "READY_CHECK")
-	check("solo checks own class buff", state.printed ~= nil and state.printed:find("야생의 징표", 1, true) ~= nil)
+	check("solo checks own class buff", state.printed ~= nil and state.printed:find("야생의 징표: Me", 1, true) ~= nil)
 end
 
 -- Gear suggestions
@@ -2003,7 +2084,31 @@ do
 		and unitFrame(state, "target").health.name.justify == "RIGHT")
 	check("party portrait on the left", frame.portrait.point[1] == "TOPLEFT" and frame.portrait.size[1] == 50)
 	check("party art faded", member.Texture.alpha == 0 and member.Portrait.alpha == 0 and member.Name.alpha == 0
-		and member.HealthBarContainer.alpha == 0 and member.ManaBar.alpha == 0 and member.Flash.alpha == 0)
+		and member.HealthBarContainer.alpha == 0 and member.ManaBar.alpha == 0)
+	check("Blizzard's aggro glow becomes the row's edge", member.Flash.parent == frame
+		and member.Flash.file == "Interface\\ChatFrame\\ChatFrameBackground" and member.Flash.point[1] == "BOTTOMRIGHT")
+	check("Blizzard's debuff icons sit right of the row", member.AuraFrameContainer.point[1] == "TOPLEFT"
+		and member.AuraFrameContainer.point[2] == frame and member.AuraFrameContainer.point[3] == "TOPRIGHT")
+	state.combat = true
+	member:ToPlayerArt()
+	check("squared off again after Blizzard redraws its art, in combat too", member.Flash.parent == frame
+		and member.Flash.point[1] == "BOTTOMRIGHT" and member.Flash.file == "Interface\\ChatFrame\\ChatFrameBackground")
+	state.combat = false
+	-- Measured in game: every party aura comes with duration 0, and long group buffs come along.
+	state.myAuras = { party1 = {
+		{ name = "신의 권능: 인내", icon = "fortitude", auraInstanceID = 1, duration = 0 },
+		{ name = "왕의 축복", icon = "kings", auraInstanceID = 2, duration = 0 },
+		{ name = "소생", icon = "renew", auraInstanceID = 7, duration = 15 },
+		{ name = SECRET, icon = "hidden", auraInstanceID = 3, duration = 0 },
+		{ name = "신의 권능: 보호막", icon = "shield", auraInstanceID = 8, duration = 0 },
+	} }
+	fire(env, "UNIT_AURA", "party1")
+	check("only shields and heals over time, by name", frame.hots[1].shown and frame.hots[1].texture.file == "renew"
+		and frame.hots[2].texture.file == "shield" and frame.hots[3].shown == false)
+	check("time shown when the game gives one", frame.hots[1].cooldown.duration.id == 7 and frame.hots[2].cooldown.duration == nil)
+	state.myAuras = { party1 = SECRET }
+	fire(env, "UNIT_AURA", "party1")
+	check("an unreadable aura list hides them", frame.hots[1].shown == false)
 	check("party member filled", frame.health.barValue == 80 and frame.health.name.format[3] == "Friend")
 	member.Portrait:SetAlpha(0.7)
 	check("Blizzard's portrait pulse stays hidden", member.Portrait.alpha == 0)
@@ -2045,7 +2150,9 @@ end
 -- You in the party
 do
 	local state = { units = { player = mage } }
-	local env = boot(state)
+	local env, ns = boot(state)
+	-- This mock has no Edit Mode layouts to apply; the layout side is tested on its own.
+	ns.LayoutSettingChanged = function() end
 	local row
 	for _, f in ipairs(state.frames) do
 		if f.template == "SecureUnitButtonTemplate" and f.parent == env.PartyFrame then row = f end
@@ -2269,7 +2376,7 @@ do
 	state.button.buttonClick()
 	local player, party = state.saved.layouts[4].systems[1], state.saved.layouts[4].systems[5]
 	check("converted positions land where they were", near(player.anchorInfo.offsetX, -130) and near(player.anchorInfo.offsetY, 220)
-		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20))
+		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20 - 63 * 1.15))
 	check("reference screen keeps 100%", player.settings[1].value == 0)
 end
 
@@ -2303,7 +2410,7 @@ do
 	state.button.buttonClick()
 	local player, party = state.saved.layouts[4].systems[1], state.saved.layouts[4].systems[5]
 	check("version 1 shares repaired", near(player.anchorInfo.offsetX, -130) and near(player.anchorInfo.offsetY, 220)
-		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20) and env.KSUIDB.positionsVersion == 2)
+		and near(party.anchorInfo.offsetX, 20) and near(party.anchorInfo.offsetY, -20 - 63 * 1.15) and env.KSUIDB.positionsVersion == 2)
 	local frameY = env.KSUIDB.frameYPct
 	local again = layoutState({ savedDB = env.KSUIDB })
 	boot(again)

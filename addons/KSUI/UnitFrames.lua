@@ -247,6 +247,9 @@ local function addRole(frame)
 	frame.events:RegisterEvent("PLAYER_ROLES_ASSIGNED")
 end
 
+-- Defined with the party rows further down.
+local updateHots
+
 local function updateAll(frame)
 	if not UnitExists(frame.unit) then
 		return
@@ -257,11 +260,13 @@ local function updateAll(frame)
 	updateName(frame)
 	updatePortrait(frame)
 	updateRole(frame)
+	updateHots(frame)
 end
 
 local UPDATES = {
 	UNIT_HEALTH = updateHealth, UNIT_MAXHEALTH = updateHealth, UNIT_ABSORB_AMOUNT_CHANGED = updatePrediction,
 	UNIT_HEAL_PREDICTION = updatePrediction,
+	UNIT_AURA = function(frame) updateHots(frame) end,
 	UNIT_POWER_UPDATE = updatePower, UNIT_MAXPOWER = updatePower, UNIT_DISPLAYPOWER = updatePower,
 	UNIT_NAME_UPDATE = updateName, UNIT_LEVEL = updateName, PLAYER_LEVEL_CHANGED = updateName,
 	UNIT_FACTION = updateColor,
@@ -368,12 +373,123 @@ local function refreshPartyPlayer()
 	end
 end
 
+-- Blizzard's party frames keep doing the hard parts, moved out from under KSUI's row: its aggro glow becomes a thin
+-- edge round the row, and its debuff icons, filtered by Blizzard down to dispellable ones when that option is on, sit
+-- to the row's right. Blizzard reshapes the glow with its art, so it is squared off again after.
+local PARTY_GLOW = 2
+local PARTY_DEBUFFS_GAP = 4
+-- Where Blizzard_UnitFrame/Mainline/PartyFrameTemplates.xml puts them.
+local BLIZZARD_DEBUFFS_X, BLIZZARD_DEBUFFS_Y = 48, -43
+
+-- The glow is a texture, so it is squared off again at once, in combat too, whenever Blizzard redraws its art. The
+-- debuff icons' frame hangs off Blizzard's secure frame, so it moves only out of combat.
+local function placePartyExtras(member, frame)
+	local glow, debuffs = member.Flash, member.AuraFrameContainer
+	glow:ClearAllPoints()
+	if ns.db.customUnitFrames then
+		glow:SetParent(frame)
+		glow:SetTexture(FLAT)
+		glow:SetDrawLayer("BACKGROUND", -8)
+		glow:SetPoint("TOPLEFT", -PARTY_GLOW, PARTY_GLOW)
+		glow:SetPoint("BOTTOMRIGHT", PARTY_GLOW, -PARTY_GLOW)
+	else
+		glow:SetParent(member)
+		glow:SetDrawLayer("ARTWORK")
+		member:UpdateArt()
+	end
+	if InCombatLockdown() then
+		return
+	end
+	debuffs:ClearAllPoints()
+	if ns.db.customUnitFrames then
+		debuffs:SetPoint("TOPLEFT", frame, "TOPRIGHT", PARTY_DEBUFFS_GAP, 0)
+	else
+		debuffs:SetPoint("TOPLEFT", member, "TOPLEFT", BLIZZARD_DEBUFFS_X, BLIZZARD_DEBUFFS_Y)
+	end
+end
+
+-- Shields and heals over time on a party member, whoever cast them, small at the bar's bottom left. Forever reports
+-- other players' auras with no duration and ignores the aura filters, so they are picked by name from this list
+-- (Classic rank 1 spell IDs; any rank matches by name), which leaves the long group buffs out. The time left shows
+-- as a cooldown swipe when the game gives one. When an aura's name is secret, as in instances, it is left out.
+local HOT_COUNT, HOT_SIZE = 4, 12
+local SHORT_BUFF_SPELLS = {
+	17, 139, 552, -- Power Word: Shield, Renew, Abolish Disease
+	774, 8936, 2893, -- Rejuvenation, Regrowth, Abolish Poison
+	1022, -- Blessing of Protection
+}
+local shortBuffNames
+
+local function isShortBuff(aura)
+	if not shortBuffNames then
+		shortBuffNames = {}
+		for _, spell in ipairs(SHORT_BUFF_SPELLS) do
+			local name = C_Spell.GetSpellName(spell)
+			if name then
+				shortBuffNames[name] = true
+			end
+		end
+	end
+	local name, id = aura.name, aura.auraInstanceID
+	if issecretvalue(name) or issecretvalue(id) then
+		return false
+	end
+	return shortBuffNames[name] == true
+end
+
+local function addHots(frame)
+	frame.hots = {}
+	for i = 1, HOT_COUNT do
+		local icon = CreateFrame("Frame", nil, frame.health)
+		icon:SetSize(HOT_SIZE, HOT_SIZE)
+		icon:SetPoint("BOTTOMLEFT", 2 + (i - 1) * (HOT_SIZE + 1), 2)
+		icon:SetFrameLevel(frame.absorb:GetFrameLevel() + 2)
+		icon.texture = icon:CreateTexture(nil, "ARTWORK")
+		icon.texture:SetAllPoints()
+		icon.texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		icon.cooldown = CreateFrame("Cooldown", nil, icon, "CooldownFrameTemplate")
+		icon.cooldown:SetAllPoints()
+		icon.cooldown:SetHideCountdownNumbers(true)
+		icon:Hide()
+		frame.hots[i] = icon
+	end
+end
+
+function updateHots(frame)
+	if not frame.hots then
+		return
+	end
+	local unit = frame.unit
+	local auras = C_UnitAuras.GetUnitAuras(unit, "HELPFUL")
+	local shown = {}
+	if not issecretvalue(auras) and canaccesstable(auras) then
+		for _, aura in ipairs(auras) do
+			if #shown < HOT_COUNT and isShortBuff(aura) then
+				shown[#shown + 1] = aura
+			end
+		end
+	end
+	for i, icon in ipairs(frame.hots) do
+		local aura = shown[i]
+		icon:SetShown(aura ~= nil)
+		if aura then
+			icon.texture:SetTexture(aura.icon)
+			local duration = aura.duration
+			if not issecretvalue(duration) and duration > 0 then
+				icon.cooldown:SetCooldownFromDurationObject(C_UnitAuras.GetAuraDuration(unit, aura.auraInstanceID))
+			else
+				icon.cooldown:Clear()
+			end
+		end
+	end
+end
+
 local function attachPartyFrames()
 	for member in PartyFrame.PartyMemberFramePool:EnumerateActive() do
 		local frame = partyFrames[member]
 		if not frame then
 			frame = build(member, member.unitToken, false, PARTY_WIDTH, PARTY_HEIGHT, {
-				member.Texture, member.VehicleTexture, member.Flash, member.Portrait, member.Name,
+				member.Texture, member.VehicleTexture, member.Portrait, member.Name,
 				member.HealthBarContainer, member.ManaBar,
 			})
 			-- Grows to the right from Blizzard's frame instead of from its middle.
@@ -381,11 +497,20 @@ local function attachPartyFrames()
 			frame:SetPoint("LEFT")
 			listen(frame, "GROUP_ROSTER_UPDATE")
 			addRole(frame)
+			addHots(frame)
 			hooksecurefunc(member.Portrait, "SetAlpha", keepPortraitHidden)
+			for _, art in ipairs({ "ToPlayerArt", "ToVehicleArt", "ToCharacterStyleArt" }) do
+				hooksecurefunc(member, art, function()
+					if ns.db.customUnitFrames then
+						placePartyExtras(member, frame)
+					end
+				end)
+			end
 			partyFrames[member] = frame
 		end
 		setUnit(frame, member.unitToken)
 		updateClicker(frame)
+		placePartyExtras(member, frame)
 	end
 end
 
@@ -467,8 +592,9 @@ function ns.InitUnitFrames()
 	local combatEnd = CreateFrame("Frame")
 	combatEnd:RegisterEvent("PLAYER_REGEN_ENABLED")
 	combatEnd:SetScript("OnEvent", function()
-		for _, frame in pairs(partyFrames) do
+		for member, frame in pairs(partyFrames) do
 			updateClicker(frame)
+			placePartyExtras(member, frame)
 		end
 		refreshPartyPlayer()
 	end)
@@ -476,8 +602,9 @@ end
 
 function ns.RefreshUnitFrames()
 	local custom = ns.db.customUnitFrames
-	for _, frame in pairs(partyFrames) do
+	for member, frame in pairs(partyFrames) do
 		updateClicker(frame)
+		placePartyExtras(member, frame)
 	end
 	refreshPartyPlayer()
 	for _, frame in ipairs(frames) do

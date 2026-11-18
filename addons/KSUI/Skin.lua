@@ -202,6 +202,8 @@ function ns.RefreshCVars()
 	if not InCombatLockdown() then
 		SetCVar("raidFramesDisplayClassColor", ns.db.raidClassColors and "1" or "0")
 		SetCVar("raidFramesDisplayOnlyDispellableDebuffs", ns.db.dispellableOnly and "1" or "0")
+		-- The same filter for Blizzard's party frames, whose debuff icons sit beside KSUI's party rows.
+		SetCVar("showDispelDebuffs", ns.db.dispellableOnly and "1" or "0")
 		SetCVar("threatShowNumeric", ns.db.threatNumbers and "1" or "0")
 		-- Blizzard's own bar text, so it keeps working when health is secret in instances.
 		SetCVar("cooldownViewerEnabled", ns.db.cooldownManager and "1" or "0")
