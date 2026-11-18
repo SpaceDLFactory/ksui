@@ -6,12 +6,13 @@ local TANK = {
 	ITEM_MOD_STAMINA_SHORT = 1, RESISTANCE0_NAME = 0.05, ITEM_MOD_DEFENSE_SKILL_RATING_SHORT = 1,
 	ITEM_MOD_DODGE_RATING_SHORT = 0.9, ITEM_MOD_PARRY_RATING_SHORT = 0.8, ITEM_MOD_BLOCK_RATING_SHORT = 0.5,
 	ITEM_MOD_BLOCK_VALUE_SHORT = 0.3, ITEM_MOD_HIT_RATING_SHORT = 0.4, ITEM_MOD_EXPERTISE_RATING_SHORT = 0.4,
-	ITEM_MOD_ATTACK_POWER_SHORT = 0.1,
+	ITEM_MOD_ATTACK_POWER_SHORT = 0.1, ITEM_MOD_HEALTH_REGEN_SHORT = 0.4, ITEM_MOD_HEALTH_REGENERATION_SHORT = 0.4,
 }
 local MELEE = {
 	ITEM_MOD_ATTACK_POWER_SHORT = 0.5, ITEM_MOD_HIT_RATING_SHORT = 0.8, ITEM_MOD_CRIT_RATING_SHORT = 0.7,
 	ITEM_MOD_HASTE_RATING_SHORT = 0.6, ITEM_MOD_EXPERTISE_RATING_SHORT = 0.6,
 	ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.5, ITEM_MOD_STAMINA_SHORT = 0.2, RESISTANCE0_NAME = 0.02,
+	ITEM_MOD_HEALTH_REGEN_SHORT = 0.2, ITEM_MOD_HEALTH_REGENERATION_SHORT = 0.2,
 }
 local CASTER = {
 	ITEM_MOD_SPELL_POWER_SHORT = 1, ITEM_MOD_INTELLECT_SHORT = 0.6, ITEM_MOD_HIT_RATING_SHORT = 0.8,
@@ -23,10 +24,16 @@ local HEALER = {
 	ITEM_MOD_HASTE_RATING_SHORT = 0.6, ITEM_MOD_SPIRIT_SHORT = 0.5, ITEM_MOD_CRIT_RATING_SHORT = 0.5,
 	ITEM_MOD_STAMINA_SHORT = 0.2, RESISTANCE0_NAME = 0.02,
 }
+-- Health regeneration per 5 seconds; the game's key name is not confirmed for Forever, so both spellings count.
 -- Primary stat indexes as returned by GetSpecializationInfo: 1 strength, 2 agility, 4 intellect.
 local PRIMARY_KEY = { [1] = "ITEM_MOD_STRENGTH_SHORT", [2] = "ITEM_MOD_AGILITY_SHORT", [4] = "ITEM_MOD_INTELLECT_SHORT" }
-local PRIMARY_WEIGHT = { TANK = 0.6, DAMAGER = 1 }
--- Used before a spec is chosen.
+-- Levelling tanks hit and block with strength, so it counts nearly as much as stamina.
+local PRIMARY_WEIGHT = { TANK = 0.9, DAMAGER = 1 }
+-- A swap has to be this much better, so near-ties that the rough weights can't call are left alone.
+local BETTER_BY = 1.1
+-- The class's primary stat. Only classes whose specs split between stats take it from the spec: Forever reports
+-- intellect for a retribution paladin, which would score strength at nothing.
+local SPEC_DECIDES = { DRUID = true, SHAMAN = true, MONK = true }
 local CLASS_PRIMARY = {
 	WARRIOR = 1, PALADIN = 1, DEATHKNIGHT = 1, ROGUE = 2, HUNTER = 2, MONK = 2,
 	DRUID = 4, SHAMAN = 4, MAGE = 4, PRIEST = 4, WARLOCK = 4,
@@ -55,9 +62,21 @@ local function currentWeights()
 		local _
 		_, _, _, _, role, primary = C_SpecializationInfo.GetSpecializationInfo(spec)
 	end
-	if not PRIMARY_KEY[primary] then
-		local _, class = UnitClass("player")
+	local _, class = UnitClass("player")
+	if not (SPEC_DECIDES[class] and PRIMARY_KEY[primary]) then
 		primary = CLASS_PRIMARY[class] or 1
+	end
+	-- Forever can report a protection paladin as a damage dealer, so the role can also be picked in the settings.
+	local choice = ns.db.gearRole
+	if choice == "TANK" or choice == "HEALER" then
+		role = choice
+	elseif choice == "MELEE" then
+		role = "DAMAGER"
+		if primary == 4 then
+			primary = 2
+		end
+	elseif choice == "CASTER" then
+		role, primary = "DAMAGER", 4
 	end
 	local base
 	if role == "TANK" then
@@ -74,7 +93,7 @@ local function currentWeights()
 	if extra and primary ~= 4 then
 		weights[PRIMARY_KEY[primary]] = extra
 	end
-	return weights, role
+	return weights, role, primary
 end
 
 -- Returns nil when the item is not in the client's cache yet.
@@ -131,7 +150,7 @@ function ns.GearSuggestions()
 						weakest = slot
 					end
 				end
-				if not weakest or item.score <= worn[weakest] then
+				if not weakest or item.score <= worn[weakest] * BETTER_BY then
 					break
 				end
 				-- Two of the same ring are never suggested, since many rings are unique-equipped.
@@ -152,8 +171,8 @@ end
 -- /ksui stats: shows how worn gear scores and which stat keys have no weight,
 -- so the assumed key names can be checked against what the game returns.
 function ns.PrintGearStats()
-	local weights, role = currentWeights()
-	print("검성UI 장비 점수 (" .. (role or "전문화 없음") .. "):")
+	local weights, role, primary = currentWeights()
+	print("검성UI 장비 점수 (" .. (role or "전문화 없음") .. ", 주 능력치 " .. PRIMARY_KEY[primary] .. "):")
 	local seen, unknown = {}, {}
 	for _, group in ipairs(GROUPS) do
 		for _, slot in ipairs(group.slots) do

@@ -35,6 +35,9 @@ local OPTIONS = {
 	{ key = "sellJunk", label = "상인에서 잡템 자동 판매", default = true },
 	{ key = "buffCheck", label = "준비 확인 때 빠진 버프 알림", default = true },
 	{ key = "gearSuggest", label = "더 좋은 장비가 생기면 알림", default = true },
+	{ key = "gearRole", label = "장비 추천 기준", default = "AUTO", choices = {
+		{ "AUTO", "자동 (특성)" }, { "TANK", "탱커" }, { "MELEE", "근접 딜러" }, { "CASTER", "주문 딜러" }, { "HEALER", "힐러" },
+	} },
 	{ key = "gatherTracking", label = "전문 기술 채집 추적 자동 켜기", default = true, refresh = "RefreshTracking" },
 	{ key = "questArrow", label = "미니맵에 퀘스트 길안내 화살표", default = true, refresh = "RefreshQuestGuide" },
 	{ key = "questNearest", label = "가장 가까운 퀘스트로 자동 길안내", default = true, refresh = "RefreshQuestNearest" },
@@ -61,7 +64,15 @@ local VAR_TYPES = { boolean = "Boolean", number = "Number", string = "String" }
 
 local function addControl(category, setting, option)
 	local kind = type(option.default)
-	if kind == "boolean" then
+	if option.choices then
+		Settings.CreateDropdown(category, setting, function()
+			local container = Settings.CreateControlTextContainer()
+			for _, choice in ipairs(option.choices) do
+				container:Add(choice[1], choice[2])
+			end
+			return container:GetData()
+		end)
+	elseif kind == "boolean" then
 		Settings.CreateCheckbox(category, setting)
 	elseif kind == "string" then
 		Settings.CreateColorSwatch(category, setting)

@@ -110,6 +110,12 @@ local function mockSettings(env, state)
 		CreateCheckbox = control("checkbox"),
 		CreateColorSwatch = control("color"),
 		CreateSlider = control("slider"),
+		CreateDropdown = control("dropdown"),
+		CreateControlTextContainer = function()
+			local data = {}
+			return { Add = function(_, value, label) data[#data + 1] = { value = value, label = label } end,
+				GetData = function() return data end }
+		end,
 		CreateSliderOptions = function(min, max, step)
 			return { min = min, max = max, step = step,
 				SetLabelFormatter = function(self, label, format) self.formatter = label; self.format = format end }
@@ -1480,10 +1486,53 @@ do
 end
 
 do
-	local state = gearState({ spec = { role = "DAMAGER", primary = 4 } })
+	local state = gearState({ spec = { role = "DAMAGER", primary = 4 }, units = { player = { player = true, class = "MAGE" } } })
 	local _, ns = boot(state)
 	local bySlot = suggested(ns.GearSuggestions())
 	check("caster picks the intellect helm", bySlot[1] == "[cloth helm]")
+end
+
+-- Measured in game: a protection paladin wore the stamina cloak over the strength one with health regeneration.
+do
+	local state = gearState({ spec = { role = "TANK", primary = 1 } })
+	state.items["[long cloak]"] = { id = 20, loc = "INVTYPE_CLOAK", stats = { RESISTANCE0_NAME = 14, ITEM_MOD_STAMINA_SHORT = 2 } }
+	state.items["[cave cloak]"] = { id = 21, loc = "INVTYPE_CLOAK",
+		stats = { RESISTANCE0_NAME = 17, ITEM_MOD_STRENGTH_SHORT = 3, ITEM_MOD_HEALTH_REGEN_SHORT = 5 } }
+	state.worn = { [15] = "[cave cloak]" }
+	state.bags = { [0] = { "[long cloak]" } }
+	local _, ns = boot(state)
+	check("the strength cloak with regeneration stays on", suggested(ns.GearSuggestions())[15] == nil)
+	state.worn, state.bags = { [15] = "[long cloak]" }, { [0] = { "[cave cloak]" } }
+	check("and is suggested over the stamina one", suggested(ns.GearSuggestions())[15] == "[cave cloak]")
+end
+
+-- Forever reports a retribution or protection paladin with intellect as the main stat and may call it a damage
+-- dealer; strength still counts, and the role can be set by hand.
+do
+	local state = gearState({ spec = { role = "DAMAGER", primary = 4 } })
+	state.items["[long cloak]"] = { id = 20, loc = "INVTYPE_CLOAK", stats = { RESISTANCE0_NAME = 14, ITEM_MOD_STAMINA_SHORT = 2 } }
+	state.items["[cave cloak]"] = { id = 21, loc = "INVTYPE_CLOAK",
+		stats = { RESISTANCE0_NAME = 17, ITEM_MOD_STRENGTH_SHORT = 3, ITEM_MOD_HEALTH_REGEN_SHORT = 5 } }
+	state.worn, state.bags = { [15] = "[long cloak]" }, { [0] = { "[cave cloak]" } }
+	local _, ns = boot(state)
+	check("a paladin's strength counts whatever the spec says", suggested(ns.GearSuggestions())[15] == "[cave cloak]")
+	local control = state.controls.KSUI_gearRole
+	check("role picked in a dropdown", control.kind == "dropdown" and ns.db.gearRole == "AUTO")
+	state.settings.gearRole:SetValue("HEALER")
+	check("picking healer scores for a healer", suggested(ns.GearSuggestions())[15] == nil)
+	state.settings.gearRole:SetValue("TANK")
+	check("picking tank scores for a tank", suggested(ns.GearSuggestions())[15] == "[cave cloak]")
+end
+
+-- A swap less than 10% better is not suggested.
+do
+	local state = gearState({ spec = { role = "TANK", primary = 1 } })
+	local T = "ITEM_MOD_STAMINA_SHORT"
+	state.items["[helm 10]"] = { id = 30, loc = "INVTYPE_HEAD", stats = { [T] = 10 } }
+	state.items["[helm 105]"] = { id = 31, loc = "INVTYPE_HEAD", stats = { [T] = 10.5 } }
+	state.worn, state.bags = { [1] = "[helm 10]" }, { [0] = { "[helm 105]" } }
+	local _, ns = boot(state)
+	check("near-tie left alone", suggested(ns.GearSuggestions())[1] == nil)
 end
 
 -- Heavier armor wins a tie for every role, not only tanks.
