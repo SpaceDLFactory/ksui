@@ -1913,7 +1913,11 @@ end
 
 -- Nameplates
 local function plate()
-	local bar = { barTexture = texture(), bgTexture = texture() }
+	local bar = { barTexture = texture(), bgTexture = texture(), selectedBorder = texture() }
+	bar.selectedBorder.shown = false
+	function bar.selectedBorder:IsShown() return self.shown end
+	-- Blizzard shows its rounded border on the target, as in Blizzard_NamePlateHealthBar.lua.
+	function bar:UpdateSelectionBorder() self.selectedBorder:SetShown(self.isTarget) end
 	function bar:CreateFontString() return texture() end
 	function bar:CreateTexture() local t = texture(); function t:SetSize(w, h) self.size = { w, h } end; return t end
 	local unitFrame = { unit = "nameplate1", HealthBarsContainer = { healthBar = bar }, PlayerLevelDiffFrame = texture() }
@@ -1949,6 +1953,13 @@ do
 	check("secret level shown as is, in white", unitFrame.ksuiLevel.text == SECRET and unitFrame.ksuiLevel.textColor[1] == 1
 		and unitFrame.ksuiLevel.shown == true and unitFrame.ksuiSkull.shown == false)
 	unitFrame:UpdateAnchors()
+	bar.isTarget = true
+	bar:UpdateSelectionBorder()
+	check("the target gets a white thin border, not Blizzard's rounded one", bar.bgTexture.color[1] == 1
+		and bar.selectedBorder.alpha == 0)
+	bar.isTarget = false
+	bar:UpdateSelectionBorder()
+	check("back to black when no longer the target", bar.bgTexture.color[1] == 0)
 	check("Blizzard restyle is overridden", bar.bgTexture.file == "Interface\\ChatFrame\\ChatFrameBackground"
 		and unitFrame.PlayerLevelDiffFrame.alpha == 0)
 	env.NamePlateDriverFrame:OnNamePlateAdded("nameplate2")
@@ -1956,7 +1967,8 @@ do
 	state.settings.flatNameplates:SetValue(false)
 	unitFrame:UpdateAnchors()
 	check("Blizzard look returns when off", bar.bgTexture.file == "Interface\\Tooltips\\Nameplate-Border"
-		and unitFrame.PlayerLevelDiffFrame.alpha == 1 and unitFrame.ksuiLevel.shown == false and unitFrame.ksuiSkull.shown == false)
+		and unitFrame.PlayerLevelDiffFrame.alpha == 1 and unitFrame.ksuiLevel.shown == false and unitFrame.ksuiSkull.shown == false
+		and bar.selectedBorder.alpha == 1 and bar.bgTexture.color[1] == 1)
 end
 
 -- Screen-relative positions and sizes

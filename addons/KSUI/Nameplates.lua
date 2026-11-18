@@ -13,12 +13,24 @@ local SKULL_SIZE = 12
 
 local hooked = {}
 
+-- Blizzard marks the target and focus with a rounded border that doesn't fit a flat bar. It stays hidden, and the
+-- thin border turns white while Blizzard would show it.
+local function colorBorder(bar)
+	if not ns.db.flatNameplates then
+		return
+	end
+	local shade = bar.selectedBorder:IsShown() and 1 or 0
+	bar.bgTexture:SetVertexColor(shade, shade, shade, 1)
+end
+
 local function restyle(unitFrame)
 	if not ns.db.flatNameplates then
 		if unitFrame.ksuiLevel then
 			unitFrame.ksuiLevel:Hide()
 			unitFrame.ksuiSkull:Hide()
 		end
+		unitFrame.HealthBarsContainer.healthBar.selectedBorder:SetAlpha(1)
+		unitFrame.HealthBarsContainer.healthBar.bgTexture:SetVertexColor(1, 1, 1, 1)
 		return
 	end
 	local bar = unitFrame.HealthBarsContainer.healthBar
@@ -27,11 +39,12 @@ local function restyle(unitFrame)
 	local border = bar.bgTexture
 	border:SetTexture(FLAT)
 	border:SetTexCoord(0, 1, 0, 1)
-	border:SetVertexColor(0, 0, 0, 1)
 	border:SetDrawLayer("BACKGROUND")
 	border:ClearAllPoints()
 	border:SetPoint("TOPLEFT", bar, "TOPLEFT", -BORDER, BORDER)
 	border:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", BORDER, -BORDER)
+	bar.selectedBorder:SetAlpha(0)
+	colorBorder(bar)
 	unitFrame.PlayerLevelDiffFrame:SetAlpha(0)
 
 	if not unitFrame.ksuiLevel then
@@ -67,6 +80,8 @@ local function onPlateAdded(_, unit)
 	end
 	if not hooked[unitFrame] then
 		hooksecurefunc(unitFrame, "UpdateAnchors", restyle)
+		local bar = unitFrame.HealthBarsContainer.healthBar
+		hooksecurefunc(bar, "UpdateSelectionBorder", colorBorder)
 		hooked[unitFrame] = true
 	end
 	restyle(unitFrame)
