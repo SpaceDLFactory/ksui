@@ -1914,7 +1914,9 @@ end
 -- Nameplates
 local function plate()
 	local bar = { barTexture = texture(), bgTexture = texture() }
-	local unitFrame = { HealthBarsContainer = { healthBar = bar }, PlayerLevelDiffFrame = texture() }
+	function bar:CreateFontString() return texture() end
+	function bar:CreateTexture() local t = texture(); function t:SetSize(w, h) self.size = { w, h } end; return t end
+	local unitFrame = { unit = "nameplate1", HealthBarsContainer = { healthBar = bar }, PlayerLevelDiffFrame = texture() }
 	-- Blizzard's classic style puts its border art back on every call.
 	function unitFrame:UpdateAnchors()
 		bar.barTexture:SetTexture("Interface\\TargetingFrame\\UI-TargetingFrame-BarFill")
@@ -1925,7 +1927,7 @@ local function plate()
 end
 
 do
-	local state = { units = { player = mage }, plates = { nameplate1 = plate() } }
+	local state = { units = { player = mage, nameplate1 = { level = 23 } }, plates = { nameplate1 = plate() } }
 	local env = boot(state)
 	check("nameplate hook waits for Blizzard_NamePlates", state.addonLoaders.Blizzard_NamePlates ~= nil)
 	state.addonLoaders.Blizzard_NamePlates()
@@ -1936,6 +1938,16 @@ do
 	check("nameplate border is a thin black box", bar.bgTexture.file == "Interface\\ChatFrame\\ChatFrameBackground"
 		and bar.bgTexture.color[1] == 0 and bar.bgTexture.points == 2 and bar.bgTexture.point[4] == 1)
 	check("nameplate level box hidden", unitFrame.PlayerLevelDiffFrame.alpha == 0)
+	check("level written at the bar's end in its difficulty color", unitFrame.ksuiLevel.text == 23
+		and unitFrame.ksuiLevel.point[1] == "RIGHT" and unitFrame.ksuiLevel.textColor[1] == 0.5 and unitFrame.ksuiLevel.shown)
+	state.units.nameplate1.level = -1
+	unitFrame:UpdateAnchors()
+	check("boss gets the skull instead of a number", unitFrame.ksuiSkull.shown == true and unitFrame.ksuiLevel.shown == false
+		and unitFrame.ksuiSkull.atlas == "ui-hud-nameplates-levelindicator-skull")
+	state.units.nameplate1.level = SECRET
+	unitFrame:UpdateAnchors()
+	check("secret level shown as is, in white", unitFrame.ksuiLevel.text == SECRET and unitFrame.ksuiLevel.textColor[1] == 1
+		and unitFrame.ksuiLevel.shown == true and unitFrame.ksuiSkull.shown == false)
 	unitFrame:UpdateAnchors()
 	check("Blizzard restyle is overridden", bar.bgTexture.file == "Interface\\ChatFrame\\ChatFrameBackground"
 		and unitFrame.PlayerLevelDiffFrame.alpha == 0)
@@ -1944,7 +1956,7 @@ do
 	state.settings.flatNameplates:SetValue(false)
 	unitFrame:UpdateAnchors()
 	check("Blizzard look returns when off", bar.bgTexture.file == "Interface\\Tooltips\\Nameplate-Border"
-		and unitFrame.PlayerLevelDiffFrame.alpha == 1)
+		and unitFrame.PlayerLevelDiffFrame.alpha == 1 and unitFrame.ksuiLevel.shown == false and unitFrame.ksuiSkull.shown == false)
 end
 
 -- Screen-relative positions and sizes
