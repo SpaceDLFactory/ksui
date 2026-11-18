@@ -30,16 +30,26 @@ local function restyle(unitFrame)
 			unitFrame.ksuiSkull:Hide()
 		end
 		unitFrame.HealthBarsContainer.healthBar.selectedBorder:SetAlpha(1)
+		if unitFrame.HealthBarsContainer.healthBar.ksuiBackground then
+			unitFrame.HealthBarsContainer.healthBar.ksuiBackground:Hide()
+		end
 		unitFrame.HealthBarsContainer.healthBar.bgTexture:SetVertexColor(1, 1, 1, 1)
 		return
 	end
 	local bar = unitFrame.HealthBarsContainer.healthBar
 	bar.barTexture:SetTexture(FLAT)
-	-- Blizzard's background doubles as the border art; a black box one pixel larger than the bar replaces it.
+	-- Blizzard's background doubles as the border art; a box one pixel larger than the bar replaces it, with a black
+	-- fill over it inside the bar, so only the edge shows its color.
 	local border = bar.bgTexture
 	border:SetTexture(FLAT)
 	border:SetTexCoord(0, 1, 0, 1)
-	border:SetDrawLayer("BACKGROUND")
+	border:SetDrawLayer("BACKGROUND", 0)
+	if not bar.ksuiBackground then
+		bar.ksuiBackground = bar:CreateTexture(nil, "BACKGROUND", nil, 1)
+		bar.ksuiBackground:SetColorTexture(0, 0, 0, 1)
+		bar.ksuiBackground:SetAllPoints(bar)
+	end
+	bar.ksuiBackground:Show()
 	border:ClearAllPoints()
 	border:SetPoint("TOPLEFT", bar, "TOPLEFT", -BORDER, BORDER)
 	border:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", BORDER, -BORDER)

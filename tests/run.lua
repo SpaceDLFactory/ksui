@@ -1960,6 +1960,7 @@ do
 	bar.isTarget = false
 	bar:UpdateSelectionBorder()
 	check("back to black when no longer the target", bar.bgTexture.color[1] == 0)
+	check("inside the edge the bar stays black", bar.ksuiBackground.fill[1] == 0 and bar.ksuiBackground.shown ~= false)
 	check("Blizzard restyle is overridden", bar.bgTexture.file == "Interface\\ChatFrame\\ChatFrameBackground"
 		and unitFrame.PlayerLevelDiffFrame.alpha == 0)
 	env.NamePlateDriverFrame:OnNamePlateAdded("nameplate2")
@@ -1968,7 +1969,7 @@ do
 	unitFrame:UpdateAnchors()
 	check("Blizzard look returns when off", bar.bgTexture.file == "Interface\\Tooltips\\Nameplate-Border"
 		and unitFrame.PlayerLevelDiffFrame.alpha == 1 and unitFrame.ksuiLevel.shown == false and unitFrame.ksuiSkull.shown == false
-		and bar.selectedBorder.alpha == 1 and bar.bgTexture.color[1] == 1)
+		and bar.selectedBorder.alpha == 1 and bar.bgTexture.color[1] == 1 and bar.ksuiBackground.shown == false)
 end
 
 -- Screen-relative positions and sizes
