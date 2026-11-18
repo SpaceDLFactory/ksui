@@ -1647,24 +1647,29 @@ do
 		if f.parent == env.Minimap and f.scripts.OnUpdate then guide = f end
 	end
 	guide.scripts.OnUpdate(guide, 1)
-	check("arrow points straight ahead at a quest due north", near(guide.arrow.rotation, 0) and guide.arrow.shown ~= false
+	check("arrow points up at a quest due north", near(guide.arrow.rotation, 0) and guide.arrow.shown ~= false
 		and guide.distance.format[2] == 2066.87)
+	state.quest.facing = math.pi
+	guide.scripts.OnUpdate(guide, 1)
+	check("on a north-up minimap your facing doesn't turn it", near(guide.arrow.rotation, 0))
+	state.rotate = true
 	state.quest.facing = math.pi / 2
 	guide.scripts.OnUpdate(guide, 1)
-	check("facing west turns the arrow right", near(guide.arrow.rotation, -math.pi / 2))
+	check("on a rotating minimap facing west turns it right", near(guide.arrow.rotation, -math.pi / 2))
+	state.rotate = false
 	state.quest.facing = 0
 	state.quest.waypoint = { 0.4, 0.5 }
 	guide.scripts.OnUpdate(guide, 1)
 	check("a waypoint to the west is to the left", near(guide.arrow.rotation, math.pi / 2))
 	state.quest.player = nil
 	guide.scripts.OnUpdate(guide, 1)
-	-- Measured in game: quest 451 south-southwest, facing south-southeast; the arrow belongs about 32 degrees clockwise.
+	-- Measured in game: quest 451 south-southwest of you; on the north-up minimap the arrow points that way.
 	state.quest.waypoint = nil
 	state.quest.player = { 0.50326311588287, 0.71181857585907 }
 	state.quest.onMap = { { questID = 516, x = 0.46502554416656, y = 0.86224073171616 } }
 	state.quest.facing = 3.457793712616
 	guide.scripts.OnUpdate(guide, 1)
-	check("measured case points 32 degrees clockwise", math.abs(math.deg(guide.arrow.rotation) + 32.4) < 0.5)
+	check("measured case points south-southwest", math.abs(math.deg(guide.arrow.rotation) - 165.7) < 0.5)
 	state.quest.player = nil
 	guide.scripts.OnUpdate(guide, 1)
 	check("arrow hides without a player position", guide.arrow.shown == false and guide.distance.shown == false)

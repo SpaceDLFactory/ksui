@@ -50,7 +50,8 @@ local function update()
 	guide.arrow:SetShown(angle ~= nil)
 	guide.distance:SetShown(angle ~= nil)
 	if angle then
-		guide.arrow:SetRotation(angle - facing)
+		-- The minimap keeps north up unless it is set to rotate with you; only then is your facing taken off.
+		guide.arrow:SetRotation(GetCVarBool("rotateMinimap") and angle - facing or angle)
 		guide.distance:SetFormattedText("%.0f", C_Navigation.GetDistance())
 	end
 end
