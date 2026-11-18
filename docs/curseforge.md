@@ -20,7 +20,7 @@ It is built on Blizzard's own frames, so it keeps working under instance and rai
 
 ## Features
 
-- **Square unit frames** for player, target, focus and party, with animated 3D portraits, class-colored health, shield (absorb) bars and a threat glow when mobs attack you. The party frames include you and show group roles. Clicks, menus and auras stay Blizzard's.
+- **Square unit frames** for player, target, focus and party, with animated 3D portraits, class-colored health, shield (absorb) bars and a threat glow when mobs attack you. Incoming heals show on the health bars, and the party uses Blizzard's raid-style frames with heals over time, dispellable debuffs and aggro. Clicks, menus and auras stay Blizzard's.
 - **Bottom layout**: experience bar, minimap, cast bar and cooldown manager stacked in the middle, action bars on both sides of the minimap. Applied with `/ksui layout`.
 - **Clickable cooldown manager**: click an icon in Blizzard's cooldown manager to cast that spell.
 - **Quest guide arrow** on the minimap pointing at your tracked quest, with the distance, and optional auto-tracking of the nearest quest.
@@ -57,7 +57,7 @@ WoW Forever(인터페이스 16001)용 오픈소스 UI입니다. 기본 UI를 어
 
 ## 주요 기능
 
-- **네모 유닛 프레임** — 내·대상·주시·파티 프레임을 네모 초상화(움직이는 3D)와 직업색 체력바로, 보호막은 하늘색 막대로, 어그로를 받으면 테두리가 빛남. 파티 프레임에 나와 역할 아이콘도 표시. 클릭·메뉴·버프는 블리자드 그대로.
+- **네모 유닛 프레임** — 내·대상·주시·파티 프레임을 네모 초상화(움직이는 3D)와 직업색 체력바로, 보호막은 하늘색 막대로, 어그로를 받으면 테두리가 빛남. 들어올 힐 표시, 파티는 블리자드 공격대 스타일로 지속 힐·해제 디버프·어그로 표시. 클릭·메뉴·버프는 블리자드 그대로.
 - **하단 배치** — 경험치바, 미니맵, 시전바, 쿨다운 관리자를 가운데 아래로 쌓고, 단축바를 미니맵 양옆에 배치. 명령어 한 줄(`/ksui layout`)로 적용.
 - **누르는 쿨다운 관리자** — 쿨다운 관리자 아이콘을 누르면 그 스킬을 씁니다.
 - **퀘스트 길안내 화살표** — 미니맵 모서리에서 추적 중인 퀘스트 방향과 거리를 가리키고, 가장 가까운 퀘스트를 자동으로 추적할 수도 있습니다.
