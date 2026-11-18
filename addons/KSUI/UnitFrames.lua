@@ -16,7 +16,8 @@ local POWER_HEIGHT = 12
 local GAP = 2
 local FLAT = "Interface\\ChatFrame\\ChatFrameBackground"
 local HEALTH_GREEN = { 0.1, 0.8, 0.1 }
--- Shields as a pale blue stretch past the health, like Blizzard's raid frames.
+-- Incoming heals as a green stretch past the health, then shields in pale blue, like Blizzard's raid frames.
+local HEAL_COLOR = { 0.35, 0.9, 0.35, 0.6 }
 local ABSORB_COLOR = { 0.55, 0.85, 1, 0.7 }
 -- Turns a power share into the power number's alpha: hidden at nothing, shown at anything more. Going through a curve
 -- works when the power is secret, which it is for many units outside your group.
@@ -84,22 +85,28 @@ local function build(blizzard, unit, portraitRight, width, height, parts)
 	frame.health.name:SetWordWrap(false)
 	frame.health.value:SetPoint("BOTTOM" .. far, -4 * inward, 4)
 
-	-- Absorbs can be secret, so their length can't be worked out here. The bar instead starts where the health fill
-	-- ends and is as wide as the health bar on the same scale, so the client draws the right length; whatever runs
-	-- past a full bar is clipped.
+	-- Heals and absorbs can be secret, so their lengths can't be worked out here. Each bar instead starts where the
+	-- one before it ends and is as wide as the health bar on the same scale, so the client draws the right length;
+	-- whatever runs past a full bar is clipped.
 	frame.health:SetClipsChildren(true)
-	frame.absorb = CreateFrame("StatusBar", nil, frame.health)
-	frame.absorb:SetStatusBarTexture(FLAT)
-	frame.absorb:SetStatusBarColor(ABSORB_COLOR[1], ABSORB_COLOR[2], ABSORB_COLOR[3], ABSORB_COLOR[4])
-	local fill = frame.health:GetStatusBarTexture()
-	frame.absorb:SetPoint("TOPLEFT", fill, "TOPRIGHT")
-	frame.absorb:SetPoint("BOTTOMLEFT", fill, "BOTTOMRIGHT")
+	local function after(previous, color)
+		local bar = CreateFrame("StatusBar", nil, frame.health)
+		bar:SetStatusBarTexture(FLAT)
+		bar:SetStatusBarColor(color[1], color[2], color[3], color[4])
+		local fill = previous:GetStatusBarTexture()
+		bar:SetPoint("TOPLEFT", fill, "TOPRIGHT")
+		bar:SetPoint("BOTTOMLEFT", fill, "BOTTOMRIGHT")
+		return bar
+	end
+	frame.heal = after(frame.health, HEAL_COLOR)
+	frame.absorb = after(frame.heal, ABSORB_COLOR)
 	frame.health:SetScript("OnSizeChanged", function(_, width)
+		frame.heal:SetWidth(width)
 		frame.absorb:SetWidth(width)
 	end)
+	-- The incoming heal and shield amounts, each in its bar's color.
 	frame.health.absorbValue = outlinedText(frame.health)
 	frame.health.absorbValue:SetPoint("BOTTOM" .. far, frame.health.value, "BOTTOM" .. near, -6 * inward, 0)
-	frame.health.absorbValue:SetTextColor(ABSORB_COLOR[1], ABSORB_COLOR[2], ABSORB_COLOR[3])
 	-- The shield bar is a child frame, so it would draw over the bar's text; the text moves to a frame above it.
 	local texts = CreateFrame("Frame", nil, frame.health)
 	texts:SetAllPoints()
@@ -117,17 +124,33 @@ local function build(blizzard, unit, portraitRight, width, height, parts)
 	return frame
 end
 
-local function updateAbsorb(frame)
+local function colored(color, amount)
+	local r, g, b = math.floor(color[1] * 255), math.floor(color[2] * 255), math.floor(color[3] * 255)
+	return ("|cff%02x%02x%02x+%s|r"):format(r, g, b, AbbreviateNumbers(amount))
+end
+
+local function updatePrediction(frame)
 	local unit = frame.unit
+	local maxHealth = UnitHealthMax(unit)
+	local heal = UnitGetIncomingHeals(unit)
+	if not issecretvalue(heal) and heal == nil then
+		heal = 0
+	end
 	local absorb = UnitGetTotalAbsorbs(unit)
-	frame.absorb:SetMinMaxValues(0, UnitHealthMax(unit))
+	frame.heal:SetMinMaxValues(0, maxHealth)
+	frame.heal:SetValue(heal)
+	frame.absorb:SetMinMaxValues(0, maxHealth)
 	frame.absorb:SetValue(absorb)
 	-- A secret amount can't be checked for zero, so only the bar shows it then.
-	local readable = not issecretvalue(absorb) and absorb > 0
-	frame.health.absorbValue:SetShown(readable)
-	if readable then
-		frame.health.absorbValue:SetFormattedText("+%s", AbbreviateNumbers(absorb))
+	local parts = {}
+	if not issecretvalue(heal) and heal > 0 then
+		parts[#parts + 1] = colored(HEAL_COLOR, heal)
 	end
+	if not issecretvalue(absorb) and absorb > 0 then
+		parts[#parts + 1] = colored(ABSORB_COLOR, absorb)
+	end
+	frame.health.absorbValue:SetShown(#parts > 0)
+	frame.health.absorbValue:SetText(table.concat(parts, " "))
 end
 
 local function updateHealth(frame)
@@ -135,7 +158,7 @@ local function updateHealth(frame)
 	local health = UnitHealth(unit)
 	frame.health:SetMinMaxValues(0, UnitHealthMax(unit))
 	frame.health:SetValue(health)
-	updateAbsorb(frame)
+	updatePrediction(frame)
 	if ns.db.healthPercent then
 		frame.health.value:SetFormattedText("%s  %.0f%%", AbbreviateNumbers(health),
 			UnitHealthPercent(unit, true, CurveConstants.ScaleTo100))
@@ -237,7 +260,8 @@ local function updateAll(frame)
 end
 
 local UPDATES = {
-	UNIT_HEALTH = updateHealth, UNIT_MAXHEALTH = updateHealth, UNIT_ABSORB_AMOUNT_CHANGED = updateAbsorb,
+	UNIT_HEALTH = updateHealth, UNIT_MAXHEALTH = updateHealth, UNIT_ABSORB_AMOUNT_CHANGED = updatePrediction,
+	UNIT_HEAL_PREDICTION = updatePrediction,
 	UNIT_POWER_UPDATE = updatePower, UNIT_MAXPOWER = updatePower, UNIT_DISPLAYPOWER = updatePower,
 	UNIT_NAME_UPDATE = updateName, UNIT_LEVEL = updateName, PLAYER_LEVEL_CHANGED = updateName,
 	UNIT_FACTION = updateColor,

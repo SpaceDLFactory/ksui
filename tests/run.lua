@@ -273,6 +273,7 @@ local function world(state)
 	function env.UnitHealth(u) return field(u, "health", 80) end
 	function env.UnitHealthMax(u) return field(u, "maxHealth", 100) end
 	function env.UnitGetTotalAbsorbs(u) return field(u, "absorb", 0) end
+	function env.UnitGetIncomingHeals(u) return field(u, "incomingHeal", nil) end
 	function env.UnitHealthPercent(u, predicted, curve)
 		assert(predicted == true and curve == env.CurveConstants.ScaleTo100)
 		local h = field(u, "health", 80)
@@ -1857,18 +1858,22 @@ do
 	check("target portrait on the right", target.portrait.point[1] == "TOPRIGHT")
 	check("player health filled", player.health.range[2] == 100 and player.health.barValue == 80)
 	check("no shield, no shield number", player.absorb.barValue == 0 and player.health.absorbValue.shown == false)
-	check("shield bar starts where the health fill ends, clipped by the bar",
-		player.absorb.points.TOPLEFT[2] == player.health.fill and player.absorb.points.TOPLEFT[3] == "TOPRIGHT"
-		and player.health.clips == true)
+	check("heal bar starts where the health fill ends, the shield bar where the heal ends, clipped by the bar",
+		player.heal.points.TOPLEFT[2] == player.health.fill and player.heal.points.TOPLEFT[3] == "TOPRIGHT"
+		and player.absorb.points.TOPLEFT[2] == player.heal.fill and player.health.clips == true)
 	player.health.scripts.OnSizeChanged(player.health, 150)
-	check("shield bar as wide as the health bar", player.absorb.width == 150)
+	check("both as wide as the health bar", player.heal.width == 150 and player.absorb.width == 150)
 	local holder = player.health.value.parent
 	check("bar text drawn above the shield bar", holder and holder.level > player.absorb:GetFrameLevel()
 		and player.health.name.parent == holder and player.health.absorbValue.parent == holder)
 	state.units.player.absorb = 1500
 	fire(env, "UNIT_ABSORB_AMOUNT_CHANGED", "player")
 	check("shield on the health scale with its number", player.absorb.range[2] == 100 and player.absorb.barValue == 1500
-		and player.health.absorbValue.shown == true and player.health.absorbValue.format[2] == "1500")
+		and player.health.absorbValue.shown == true and player.health.absorbValue.text == "|cff8cd8ff+1500|r")
+	state.units.player.incomingHeal = 300
+	fire(env, "UNIT_HEAL_PREDICTION", "player")
+	check("incoming heal on the health scale, its amount first", player.heal.range[2] == 100 and player.heal.barValue == 300
+		and player.health.absorbValue.text == "|cff59e559+300|r |cff8cd8ff+1500|r")
 	check("health text with percent", player.health.value.format[2] == "80" and player.health.value.format[3] == 80)
 	check("player class colored", player.health.color[1] == 0.2)
 	check("bar text outlined at its own size", player.health.name.font[3] == "OUTLINE" and player.health.name.font[2] == 10
