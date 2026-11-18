@@ -1330,8 +1330,10 @@ end
 do
 	local state = { units = { player = mage } }
 	boot(state)
-	check("dispellable only on", state.cvars.raidFramesDisplayOnlyDispellableDebuffs == "1")
+	check("all debuffs shown by default", state.cvars.raidFramesDisplayOnlyDispellableDebuffs == "0")
 	check("threat numbers on", state.cvars.threatShowNumeric == "1")
+	state.settings.dispellableOnly:SetValue(true)
+	check("dispellable only when chosen", state.cvars.raidFramesDisplayOnlyDispellableDebuffs == "1")
 	check("prerequisite switches on", state.cvars.threatWarning == "3" and state.cvars.raidFramesDisplayDebuffs == "1")
 	check("health percent on", state.cvars.statusTextDisplay == "BOTH" and state.cvars.statusText == "1")
 	check("cooldown manager on", state.cvars.cooldownViewerEnabled == "1")

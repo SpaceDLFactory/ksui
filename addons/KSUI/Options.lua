@@ -18,7 +18,8 @@ local OPTIONS = {
 	{ key = "cooldownFontSize", label = "숫자 크기", default = 16, min = 10, max = 32, step = 1, refresh = "RefreshCooldowns" },
 	{ header = "파티/공격대" },
 	{ key = "raidClassColors", label = "공격대 프레임 직업색", default = true, refresh = "RefreshCVars" },
-	{ key = "dispellableOnly", label = "해제할 수 있는 디버프만 표시", default = true, refresh = "RefreshCVars" },
+	-- Off by default: debuffs nobody can remove, like a priest's Weakened Soul, matter too.
+	{ key = "dispellableOnly", label = "해제할 수 있는 디버프만 표시", default = false, refresh = "RefreshCVars" },
 	{ header = "전투 보조" },
 	{ key = "cooldownManager", label = "직업별 쿨다운·버프 표시 (쿨다운 관리자)", default = true, refresh = "RefreshCVars" },
 	{ key = "cooldownCast", label = "쿨다운 관리자 아이콘을 눌러 스킬 사용", default = true, refresh = "RefreshCooldownCast" },
