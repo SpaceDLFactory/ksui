@@ -129,7 +129,7 @@ local function mockSettings(env, state)
 end
 
 local function world(state)
-	local env = { ipairs = ipairs, pairs = pairs, type = type, setmetatable = setmetatable, error = error, table = table, math = math, string = string }
+	local env = { ipairs = ipairs, pairs = pairs, type = type, tonumber = tonumber, tostring = tostring, setmetatable = setmetatable, error = error, table = table, math = math, string = string }
 	env._G = env
 	local handlers = {}
 	env.events = handlers
@@ -383,8 +383,71 @@ local function world(state)
 		end
 		env[kind .. "CooldownViewer"] = viewer
 	end
-	env.GameTooltip = {}
+	env.GameTooltip = { lines = {} }
+	function env.GameTooltip:GetUnit() return state.tooltipUnit and "Name", state.tooltipUnit end
+	function env.GameTooltip:AddLine(text, r, g, b) self.lines[#self.lines + 1] = { text, r, g, b } end
 	function env.GameTooltip_Hide() end
+	env.GameTooltipTextLeft1 = texture()
+	state.tooltipPostCalls = {}
+	env.TooltipDataProcessor = { AddTooltipPostCall = function(kind, fn) state.tooltipPostCalls[kind] = fn end }
+	env.C_ClassColor = { GetClassColor = function(class) return env.RAID_CLASS_COLORS[class] end }
+	-- Chat: each frame keeps what reached Blizzard's AddMessage.
+	env.NUM_CHAT_WINDOWS = 2
+	for i = 1, 2 do
+		local frame = { received = {} }
+		function frame:AddMessage(text) self.received[#self.received + 1] = text end
+		env["ChatFrame" .. i] = frame
+	end
+	state.linkHandlers, state.popups, state.sounds = {}, {}, {}
+	env.LinkUtil = { RegisterLinkHandler = function(kind, fn) state.linkHandlers[kind] = fn end }
+	env.StaticPopupDialogs = {}
+	function env.StaticPopup_Show(name, _, _, data) state.popups[#state.popups + 1] = { name, data } end
+	function env.StaticPopup_FindVisible(name) return state.visiblePopup == name and state.popupDialog or nil end
+	function env.StaticPopup_Hide(name) state.hiddenPopup = name end
+	env.CLOSE = "닫기"
+	env.SOUNDKIT = { TELL_MESSAGE = 3081 }
+	function env.PlaySound(id) state.sounds[#state.sounds + 1] = id end
+	-- Quests: state.npc = { gossipActive = {...}, gossipAvailable = {...}, active = {...}, available = {...},
+	-- completable, choices, pvp }; picks land in state.picked.
+	state.npc = state.npc or {}
+	state.picked = {}
+	local function pick(what) return function(arg) state.picked[#state.picked + 1] = { what, arg } end end
+	env.C_GossipInfo = {
+		GetActiveQuests = function() return state.npc.gossipActive or {} end,
+		GetAvailableQuests = function() return state.npc.gossipAvailable or {} end,
+		SelectActiveQuest = pick("active"), SelectAvailableQuest = pick("available"),
+	}
+	function env.GetNumActiveQuests() return #(state.npc.active or {}) end
+	function env.GetActiveTitle(i) return "Quest", state.npc.active[i] end
+	function env.GetNumAvailableQuests() return #(state.npc.available or {}) end
+	function env.IsAvailableQuestTrivial(i) return state.npc.available[i] end
+	env.SelectActiveQuest, env.SelectAvailableQuest = pick("greetingActive"), pick("greetingAvailable")
+	env.AcceptQuest, env.CompleteQuest, env.GetQuestReward = pick("accept"), pick("complete"), pick("reward")
+	function env.QuestFlagsPVP() return state.npc.pvp end
+	function env.IsQuestCompletable() return state.npc.completable end
+	function env.GetNumQuestChoices() return state.npc.choices or 0 end
+	function env.IsShiftKeyDown() return state.shift end
+	-- Loot, invites, experience, movies.
+	state.looted = {}
+	function env.GetNumLootItems() return state.lootCount or 0 end
+	function env.LootSlot(slot) state.looted[#state.looted + 1] = slot end
+	function env.IsGuildMember(guid) return guid == "guildie" end
+	env.C_FriendList = { IsFriend = function(guid) return guid == "friend" end }
+	env.C_BattleNet = { GetAccountInfoByGUID = function() return nil end }
+	function env.AcceptGroup() state.acceptedGroup = true end
+	env.GameRulesUtil = { IsPlayerAtEffectiveMaxLevel = function() return state.maxLevel end }
+	function env.IsXPUserDisabled() return false end
+	function env.UnitXP() return state.xp or 250 end
+	function env.UnitXPMax() return 1000 end
+	function env.GetXPExhaustion() return state.rested end
+	function env.BreakUpLargeNumbers(n) return tostring(n) end
+	env.MovieFrame = { finished = {} }
+	function env.MovieFrame:PlayMovie() end
+	function env.MovieFrame:OnMovieFinished(userCanceled) self.finished[#self.finished + 1] = userCanceled end
+	function env.CinematicFrame_CancelCinematic() state.cutsceneCancelled = (state.cutsceneCancelled or 0) + 1 end
+	function env.GetSubZoneText() return state.subzone or "" end
+	function env.UnitIsUnit(a, b) return a == b end
+	env.MainStatusTrackingBarContainer = env.CreateFrame("Frame")
 	-- state.quest = { map, player = {x, y} or nil, facing, supertracked, waypoint = {x, y}, onMap = {...}, log = {...} }
 	-- World positions here are the map position scaled: north is -y on the map, west is -x.
 	state.quest = state.quest or { map = 1420, player = { 0.5, 0.5 }, facing = 0, supertracked = 516,
@@ -484,6 +547,7 @@ local function world(state)
 	env.SlashCmdList = {}
 	env.Enum = {
 		LuaCurveType = { Linear = 0, Step = 1 },
+		TooltipDataType = { Unit = 2 },
 		EditModeCooldownViewerSetting = { VisibleSetting = 6 },
 		EditModeMinimapSetting = { HeaderUnderneath = 0 },
 		EditModeMicroMenuSetting = { Size = 2 },
@@ -1913,6 +1977,103 @@ do
 	check("option off hands it back to Blizzard", glow.parent == env.PlayerFrame.PlayerFrameContainer
 		and glow.atlas == "UI-HUD-UnitFrame-Player-PortraitOn-InCombat" and glow.layer == "OVERLAY"
 		and glow.point[1] == "CENTER" and glow.points == 1 and state.statusPlaced == env.PlayerFrame.PlayerFrameContainer)
+end
+
+-- Auto quest
+do
+	local state = { units = { player = mage }, npc = {
+		gossipActive = { { questID = 11, isComplete = false }, { questID = 12, isComplete = true } },
+		gossipAvailable = { { questID = 21, isTrivial = true }, { questID = 22, isTrivial = false } },
+	} }
+	local env = boot(state)
+	fire(env, "GOSSIP_SHOW")
+	check("a finished quest is turned in first", state.picked[1][1] == "active" and state.picked[1][2] == 12)
+	state.npc.gossipActive = {}
+	fire(env, "GOSSIP_SHOW")
+	check("then a new one, skipping gray ones", state.picked[2][1] == "available" and state.picked[2][2] == 22)
+	state.npc.active, state.npc.available = { false }, { true, false }
+	fire(env, "QUEST_GREETING")
+	check("the old greeting window too", state.picked[3][1] == "greetingAvailable" and state.picked[3][2] == 2)
+	fire(env, "QUEST_DETAIL")
+	check("accepted", state.picked[4][1] == "accept")
+	state.npc.pvp = true
+	fire(env, "QUEST_DETAIL")
+	check("a PvP quest's confirmation stays yours", #state.picked == 4)
+	state.npc.completable = true
+	fire(env, "QUEST_PROGRESS")
+	check("handed in", state.picked[5][1] == "complete")
+	state.npc.choices = 3
+	fire(env, "QUEST_COMPLETE")
+	check("a choice of rewards is left to you", #state.picked == 5)
+	state.npc.choices = 1
+	fire(env, "QUEST_COMPLETE")
+	check("a single reward is taken", state.picked[6][1] == "reward" and state.picked[6][2] == 1)
+	state.shift = true
+	fire(env, "QUEST_PROGRESS")
+	check("Shift skips it all", #state.picked == 6)
+end
+
+-- Chat
+do
+	local state = { units = { player = mage } }
+	local env = boot(state)
+	local frame = env.ChatFrame1
+	frame:AddMessage("|Hchannel:channel:1|h[1. 공개 - 티리스팔 숲]|h |Hplayer:Way|h[Way]|h: www.example.com 가세요")
+	local line = frame.received[1]
+	check("channel cut to its name", line:find("|Hchannel:channel:1|h[공개]|h", 1, true) ~= nil)
+	check("the sender's link stays", line:find("|Hplayer:Way|h[Way]|h", 1, true) ~= nil)
+	check("an address becomes a copy link", line:find("|Hksuiurl:www.example.com|h[www.example.com]|h", 1, true) ~= nil)
+	frame:AddMessage("https://www.example.com")
+	check("one link for an address with www in it", select(2, frame.received[2]:gsub("|Hksuiurl:", "")) == 1)
+	table.remove(frame.received, 2)
+	frame:AddMessage("|Hitem:6948|h[https://in.an/item]|h")
+	check("addresses inside other links are left alone", frame.received[2] == "|Hitem:6948|h[https://in.an/item]|h")
+	frame:AddMessage(SECRET)
+	check("secret lines pass untouched", frame.received[3] == SECRET)
+	state.linkHandlers.ksuiurl("ksuiurl:https://a.b/c")
+	check("clicking opens the copy box", state.popups[1][1] == "KSUI_COPY_URL" and state.popups[1][2] == "https://a.b/c")
+	fire(env, "CHAT_MSG_WHISPER")
+	check("a whisper plays a sound", state.sounds[1] == 3081)
+	state.settings.shortChannels:SetValue(false)
+	frame:AddMessage("|Hchannel:channel:2|h[2. 거래]|h")
+	check("channels kept when off", frame.received[4] == "|Hchannel:channel:2|h[2. 거래]|h")
+end
+
+-- Conveniences
+do
+	local state = { units = { player = mage, mouseover = { player = true, class = "MAGE" }, mouseovertarget = { name = "Bob" } },
+		lootCount = 3, rested = 300, visiblePopup = "PARTY_INVITE", popupDialog = {} }
+	local env, ns = boot(state)
+	fire(env, "LOOT_READY", true)
+	check("auto loot takes every slot at once", #state.looted == 3)
+	fire(env, "LOOT_READY", false)
+	check("not when auto loot is off", #state.looted == 3)
+
+	state.tooltipUnit = "mouseover"
+	state.tooltipPostCalls[2](env.GameTooltip)
+	check("a player's name in class color", env.GameTooltipTextLeft1.textColor[1] == 0.2)
+	check("and whom they target", env.GameTooltip.lines[1][1] == "대상: Bob")
+
+	-- name, isTank, isHealer, isDamage, isNativeRealm, isCrossShard, allowMultipleRoles, inviterGUID
+	fire(env, "PARTY_INVITE_REQUEST", "Guy", false, false, false, true, false, false, "stranger")
+	fire(env, "PARTY_INVITE_REQUEST", "Guy", false, false, false, true, false, "guildie", "stranger")
+	check("strangers' invites stay yours", not state.acceptedGroup)
+	fire(env, "PARTY_INVITE_REQUEST", "Guy", false, false, false, true, false, false, "guildie")
+	check("a guild member's invite is accepted, and the dialog won't decline it",
+		state.acceptedGroup and state.popupDialog.inviteAccepted == 1 and state.hiddenPopup == "PARTY_INVITE")
+
+	fire(env, "QUEST_TURNED_IN", 1, 150)
+	fire(env, "QUEST_TURNED_IN", 2, 50)
+	check("quests remembered for the estimate", #ns.db.questXP == 2)
+
+	env.MovieFrame:PlayMovie(5)
+	check("a new movie plays", #env.MovieFrame.finished == 0 and ns.db.seenMovies[5])
+	env.MovieFrame:PlayMovie(5)
+	check("a seen one is skipped", env.MovieFrame.finished[1] == true)
+	fire(env, "CINEMATIC_START", true)
+	fire(env, "CINEMATIC_START", true)
+	for _, timer in ipairs(state.timers) do timer() end
+	check("a seen cutscene is cancelled", state.cutsceneCancelled == 1)
 end
 
 -- Nameplates

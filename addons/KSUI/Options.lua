@@ -38,6 +38,15 @@ local OPTIONS = {
 	{ key = "questArrow", label = "미니맵에 퀘스트 길안내 화살표", default = true, refresh = "RefreshQuestGuide" },
 	{ key = "questNearest", label = "가장 가까운 퀘스트로 자동 길안내", default = true, refresh = "RefreshQuestNearest" },
 	{ key = "chatTimestamps", label = "채팅에 시간 표시", default = true, refresh = "RefreshCVars" },
+	{ key = "shortChannels", label = "채팅 채널 이름 줄이기 ([1. 공개 - 지역] → [공개])", default = true },
+	{ key = "chatLinks", label = "채팅의 웹 주소를 눌러 복사", default = true },
+	{ key = "whisperSound", label = "귓속말 알림음", default = true },
+	{ key = "autoQuest", label = "퀘스트 자동 수락·완료 (Shift를 누르고 말 걸면 건너뜀)", default = true },
+	{ key = "fastLoot", label = "빠른 전리품 줍기 (자동 줍기일 때)", default = true },
+	{ key = "tooltipExtras", label = "툴팁에 직업색 이름과 그 유닛의 대상", default = true },
+	{ key = "autoInvite", label = "친구·길드원 파티 초대 자동 수락", default = true },
+	{ key = "xpText", label = "경험치바에 남은 경험치 표시", default = true, refresh = "RefreshXPText" },
+	{ key = "skipSeenMovies", label = "한 번 본 영상 자동 넘기기", default = true },
 	{ header = "프레임 위치" },
 	-- Shares of the screen, so a different screen size or UI scale keeps the same arrangement. The defaults are the
 	-- old 130, 220, 20 and 20 UI units on the 2133 x 1200 screen KSUI was tuned on.

@@ -15,6 +15,9 @@ Meter.lua
 Threat.lua
 Quest.lua
 CooldownCast.lua
+AutoQuest.lua
+Chat.lua
+Convenience.lua
 Cooldown.lua
 Layout.lua
 Combat.lua
