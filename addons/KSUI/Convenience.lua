@@ -72,6 +72,7 @@ end
 
 -- The last few quests' experience gives a rough "quests to go".
 local QUESTS_REMEMBERED = 10
+local XP_TEXT_CHECK = 0.1
 local xpText
 
 local function questsToGo(remaining)
@@ -174,6 +175,22 @@ function ns.InitConvenience()
 	holder:SetFrameLevel(MainStatusTrackingBarContainer:GetFrameLevel() + 10)
 	xpText = ns.OutlinedText(holder)
 	xpText:SetPoint("CENTER", holder, "CENTER", 0, 1)
+	-- Blizzard shows its own bar text on mouseover (or always, by its option), in the same spot. Its bars are made
+	-- before KSUI loads, so instead of hooking them this checks a few times a second and steps aside meanwhile.
+	local elapsed = 0
+	holder:SetScript("OnUpdate", function(_, delta)
+		elapsed = elapsed + delta
+		if elapsed < XP_TEXT_CHECK then
+			return
+		end
+		elapsed = 0
+		local blizzardText = false
+		for _, bar in ipairs({ MainStatusTrackingBarContainer:GetChildren() }) do
+			local overlay = bar.OverlayFrame
+			blizzardText = blizzardText or (overlay ~= nil and overlay.Text ~= nil and overlay.Text:IsVisible())
+		end
+		holder:SetAlpha(blizzardText and 0 or 1)
+	end)
 
 	TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, onUnitTooltip)
 	hooksecurefunc(MovieFrame, "PlayMovie", onMovie)

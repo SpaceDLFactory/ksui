@@ -191,6 +191,7 @@ local function world(state)
 		function f:EnableMouse(v) self.mouse = v end
 		function f:SetFrameLevel(l) self.level = l end
 		function f:SetHideCountdownNumbers(v) self.hideNumbers = v end
+		function f:SetAlpha(v) self.alpha = v end
 		function f:Clear() self.duration = nil end
 		function f:GetFrameLevel() return self.level or 1 end
 		function f:IsShown() return self.shown ~= false end
@@ -493,6 +494,12 @@ local function world(state)
 	function env.RegisterStateDriver(frame, kind, rule) state.drivers[frame] = rule end
 	function env.UnregisterStateDriver(frame) state.drivers[frame] = nil end
 	env.MainStatusTrackingBarContainer = env.CreateFrame("Frame")
+	-- Blizzard's experience bar, whose text shows on mouseover.
+	state.blizzardXPText = { visible = false }
+	function state.blizzardXPText:IsVisible() return self.visible end
+	local xpBar = { OverlayFrame = { Text = state.blizzardXPText } }
+	function env.MainStatusTrackingBarContainer:GetChildren() return xpBar, {} end
+	function env.MainStatusTrackingBarContainer:GetFrameLevel() return 3 end
 	-- state.quest = { map, player = {x, y} or nil, facing, supertracked, waypoint = {x, y}, onMap = {...}, log = {...} }
 	-- World positions here are the map position scaled: north is -y on the map, west is -x.
 	state.quest = state.quest or { map = 1420, player = { 0.5, 0.5 }, facing = 0, supertracked = 516,
@@ -2374,6 +2381,16 @@ do
 	check("a guild member's invite is accepted, and the dialog won't decline it",
 		state.acceptedGroup and state.popupDialog.inviteAccepted == 1 and state.hiddenPopup == "PARTY_INVITE")
 
+	local holder
+	for _, f in ipairs(state.frames) do
+		if f.parent == env.MainStatusTrackingBarContainer and f.scripts.OnUpdate then holder = f end
+	end
+	state.blizzardXPText.visible = true
+	holder.scripts.OnUpdate(holder, 1)
+	check("KSUI's experience text steps aside while Blizzard's shows", holder.alpha == 0)
+	state.blizzardXPText.visible = false
+	holder.scripts.OnUpdate(holder, 1)
+	check("and comes back after", holder.alpha == 1)
 	fire(env, "QUEST_TURNED_IN", 1, 150)
 	fire(env, "QUEST_TURNED_IN", 2, 50)
 	check("quests remembered for the estimate", #ns.db.questXP == 2)
