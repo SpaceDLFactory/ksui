@@ -9,3 +9,4 @@ ignore:
   - tools
   - docs
   - README.md
+  - CLAUDE.md
