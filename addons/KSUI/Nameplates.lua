@@ -15,12 +15,15 @@ local hooked = {}
 
 -- Blizzard marks the target and focus with a rounded border that doesn't fit a flat bar. It stays hidden, and the
 -- thin border turns white while Blizzard would show it.
+-- Blizzard shows that border from UnitIsUnit(plate, "target"), which can be secret in instances, so the border's
+-- shown state is too; it goes straight to a setter that accepts a secret instead of being tested.
+local TARGET_BORDER, PLAIN_BORDER = CreateColor(1, 1, 1, 1), CreateColor(0, 0, 0, 1)
+
 local function colorBorder(bar)
 	if not ns.db.flatNameplates then
 		return
 	end
-	local shade = bar.selectedBorder:IsShown() and 1 or 0
-	bar.bgTexture:SetVertexColor(shade, shade, shade, 1)
+	bar.bgTexture:SetVertexColorFromBoolean(bar.selectedBorder:IsShown(), TARGET_BORDER, PLAIN_BORDER)
 end
 
 local function restyle(unitFrame)

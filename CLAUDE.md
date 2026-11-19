@@ -78,6 +78,11 @@ Development moved from a Mac session to this Windows machine on 2026-11-20. The 
 - Don't make Edit Mode systems depend on addon frames, and don't add KSUI frames to Blizzard layout frames
   (layoutIndex) — both spread taint into secure code.
 - At saved-variables load UIParent is still 1365x768; measure the screen later (EDIT_MODE_LAYOUTS_UPDATED or after).
+- The API docs say how each guarded call fails: a precondition with `FailureMode = "Error"` (e.g.
+  `RequiresUnitAuraAccess` on every aura query) raises for addon code instead of returning a secret; check first
+  (`C_Secrets.ShouldAurasBeSecret()`) and pcall. `tools/api-throws.lua <docs dir> addons/KSUI` lists every call
+  site of such an API; `tools/api-flags.lua` lists the secret flags of every API the addon calls. Re-run both after
+  a client patch. Event payloads can be secret too (`UNIT_AURA`'s unit is, where auras are restricted).
 - Classic Blessing of Kings uses a purple helmet icon (not a crown) — not a bug.
 - Chat `/run` lines are capped at 255 characters; split long diagnostics.
 

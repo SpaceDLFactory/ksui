@@ -125,6 +125,11 @@ function ns.InitShortBuffs()
 	events:RegisterEvent("UNIT_AURA")
 	events:RegisterEvent("GROUP_ROSTER_UPDATE")
 	events:SetScript("OnEvent", function(_, event, unit)
+		-- UNIT_AURA's unit can itself be secret where auras are (SecretWhenAurasRestricted), so it isn't compared
+		-- then; nothing could be read anyway.
+		if event == "UNIT_AURA" and issecretvalue(unit) then
+			return
+		end
 		for frame, icons in pairs(compactFrames) do
 			local shown = frame.displayedUnit
 			if event == "GROUP_ROSTER_UPDATE" or shown == unit then

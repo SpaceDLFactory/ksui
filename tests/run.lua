@@ -45,7 +45,15 @@ local function texture()
 	function t:SetText(v) self.text = v end
 	function t:SetAllPoints() end
 	function t:SetSize() end
-	function t:SetVertexColorFromBoolean(v, yes, no) self.colorFrom = { v, yes, no } end
+	function t:SetVertexColorFromBoolean(v, yes, no)
+		assert(type(v) == "boolean" or v == SECRET, "SetVertexColorFromBoolean needs a boolean")
+		self.colorFrom = { v, yes, no }
+		-- The client picks the color itself; a secret leaves the test unable to tell which.
+		if v ~= SECRET then
+			local c = v and yes or no
+			self.color = { c.r, c.g, c.b }
+		end
+	end
 	function t:SetShown(v) self.shown = v end
 	function t:GetFont() return "Fonts\\font.ttf", 10 end
 	function t:SetFont(path, size, flags) self.font = { path, size, flags } end
@@ -2601,6 +2609,9 @@ do
 		and raidIcons[1].texture.file == "shield" and raidIcons[2].shown == false)
 	check("other frames that code draws are left alone", #plateIcons == 0)
 	state.myAuras.raid3 = {}
+	-- Where auras are restricted the event's unit can be secret; it is not compared then.
+	fire(env, "UNIT_AURA", SECRET)
+	check("a secret aura event unit is ignored", raidIcons[1].shown == true)
 	fire(env, "UNIT_AURA", "raid3")
 	check("they follow the unit's auras", raidIcons[1].shown == false)
 
@@ -2790,6 +2801,12 @@ do
 	bar.isTarget = false
 	bar:UpdateSelectionBorder()
 	check("back to black when no longer the target", bar.bgTexture.color[1] == 0)
+	-- In instances Blizzard's UnitIsUnit(plate, "target") can be secret, and so the border's shown state.
+	bar.isTarget = SECRET
+	bar:UpdateSelectionBorder()
+	check("a secret target state goes to the color setter untested", bar.bgTexture.colorFrom[1] == SECRET)
+	bar.isTarget = false
+	bar:UpdateSelectionBorder()
 	check("inside the edge the bar stays black", bar.ksuiBackground.fill[1] == 0 and bar.ksuiBackground.shown ~= false)
 	unitFrame.unit = nil
 	unitFrame:UpdateAnchors()
