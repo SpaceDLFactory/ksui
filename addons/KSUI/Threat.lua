@@ -106,7 +106,7 @@ function ns.InitThreat()
 	threat:SetBackdropBorderColor(0, 0, 0, 1)
 	threat.title = ns.OutlinedText(threat)
 	threat.title:SetPoint("TOPLEFT", 4, -3)
-	threat.title:SetText("위협")
+	threat.title:SetText(ns.T("위협", "Threat"))
 
 	threat.rows = {}
 	for i = 1, #UNITS do

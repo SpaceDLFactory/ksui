@@ -51,7 +51,7 @@ local function hookFrame(frame)
 end
 
 StaticPopupDialogs.KSUI_COPY_URL = {
-	text = "주소를 복사하세요 (Ctrl+C)",
+	text = ns.T("주소를 복사하세요 (Ctrl+C)", "Copy the address (Ctrl+C)"),
 	button1 = CLOSE,
 	hasEditBox = true,
 	editBoxWidth = 320,

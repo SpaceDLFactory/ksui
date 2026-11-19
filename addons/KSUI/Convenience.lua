@@ -40,11 +40,11 @@ local function onUnitTooltip(tooltip)
 	if issecretvalue(isPlayer) then
 		return
 	elseif isPlayer then
-		tooltip:AddLine("대상: >> 나 <<", 1, 0.2, 0.2)
+		tooltip:AddLine(ns.T("대상: >> 나 <<", "Target: >> YOU <<"), 1, 0.2, 0.2)
 	else
 		local name = UnitName(target)
 		if not issecretvalue(name) then
-			tooltip:AddLine("대상: " .. name, 1, 1, 1)
+			tooltip:AddLine(ns.T("대상: ", "Target: ") .. name, 1, 1, 1)
 		end
 	end
 end
@@ -95,14 +95,14 @@ local function updateXP()
 	end
 	local current, max = UnitXP("player"), UnitXPMax("player")
 	local remaining = max - current
-	local text = ("남은 경험치 %s (%.0f%%)"):format(BreakUpLargeNumbers(remaining), remaining / max * 100)
+	local text = ns.T("남은 경험치 %s (%.0f%%)", "%s XP to go (%.0f%%)"):format(BreakUpLargeNumbers(remaining), remaining / max * 100)
 	local rested = GetXPExhaustion()
 	if rested and rested > 0 then
-		text = text .. (" · 휴식 %s"):format(BreakUpLargeNumbers(rested))
+		text = text .. ns.T(" · 휴식 %s", " · rested %s"):format(BreakUpLargeNumbers(rested))
 	end
 	local quests = questsToGo(remaining)
 	if quests then
-		text = text .. (" · 퀘스트 약 %d개"):format(quests)
+		text = text .. ns.T(" · 퀘스트 약 %d개", " · about %d quests"):format(quests)
 	end
 	xpText:SetText(text)
 end

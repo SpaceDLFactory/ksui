@@ -223,14 +223,15 @@ end
 -- so the assumed key names can be checked against what the game returns.
 function ns.PrintGearStats()
 	local weights, role, primary = currentWeights()
-	print("검성UI 장비 점수 (" .. (role or "전문화 없음") .. ", 주 능력치 " .. PRIMARY_KEY[primary] .. "):")
+	print(ns.T("검성UI 장비 점수 (%s, 주 능력치 %s):", "KSUI gear scores (%s, primary stat %s):"):format(
+		role or ns.T("전문화 없음", "no specialization"), PRIMARY_KEY[primary]))
 	local seen, unknown = {}, {}
 	for _, group in ipairs(GROUPS) do
 		for _, slot in ipairs(group.slots) do
 			local link = GetInventoryItemLink("player", slot)
 			if link then
 				local value = score(link, weights)
-				print("  " .. link .. " " .. (value and string.format("%.1f", value) or "정보 없음"))
+				print("  " .. link .. " " .. (value and string.format("%.1f", value) or ns.T("정보 없음", "no data")))
 				for key in pairs(C_Item.GetItemStats(link) or {}) do
 					if not weights[key] and not seen[key] then
 						seen[key] = true
@@ -241,7 +242,8 @@ function ns.PrintGearStats()
 		end
 	end
 	table.sort(unknown)
-	print("  가중치 없는 능력치: " .. (#unknown > 0 and table.concat(unknown, ", ") or "없음"))
+	print(ns.T("  가중치 없는 능력치: ", "  Stats without a weight: ")
+		.. (#unknown > 0 and table.concat(unknown, ", ") or ns.T("없음", "none")))
 end
 
 function ns.OnBagUpdate()
@@ -256,18 +258,19 @@ function ns.OnBagUpdate()
 		end
 	end
 	if #fresh > 0 then
-		print("검성UI: 더 좋은 장비 - " .. table.concat(fresh, ", ") .. ". 캐릭터 창의 '추천 장비 착용'으로 입을 수 있습니다.")
+		print(ns.T("검성UI: 더 좋은 장비 - %s. 캐릭터 창의 '추천 장비 착용'으로 입을 수 있습니다.",
+			"KSUI: better gear - %s. Wear it with 'Equip suggested' under the character window."):format(table.concat(fresh, ", ")))
 	end
 end
 
 function ns.EquipBest()
 	if InCombatLockdown() then
-		print("검성UI: 전투 중에는 장비를 바꿀 수 없습니다.")
+		print(ns.T("검성UI: 전투 중에는 장비를 바꿀 수 없습니다.", "KSUI: gear can't be changed in combat."))
 		return
 	end
 	local list = ns.GearSuggestions()
 	if #list == 0 then
-		print("검성UI: 지금 입은 장비가 가장 좋습니다.")
+		print(ns.T("검성UI: 지금 입은 장비가 가장 좋습니다.", "KSUI: what you wear is already the best."))
 		return
 	end
 	local links = {}
@@ -275,7 +278,7 @@ function ns.EquipBest()
 		C_Item.EquipItemByName(item.link, item.slot)
 		links[#links + 1] = item.link
 	end
-	print("검성UI: 착용 요청 - " .. table.concat(links, ", "))
+	print(ns.T("검성UI: 착용 요청 - ", "KSUI: equipping - ") .. table.concat(links, ", "))
 end
 
 -- Shown under the character window, only while the character tab is open.
@@ -283,7 +286,7 @@ function ns.InitGear()
 	local button = CreateFrame("Button", nil, PaperDollFrame, "UIPanelButtonTemplate")
 	button:SetSize(140, 24)
 	button:SetPoint("TOPLEFT", CharacterFrame, "BOTTOMLEFT", 0, -4)
-	button:SetText("추천 장비 착용")
+	button:SetText(ns.T("추천 장비 착용", "Equip suggested"))
 	button:SetScript("OnClick", ns.EquipBest)
 	ns.gearButton = button
 end

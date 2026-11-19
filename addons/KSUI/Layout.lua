@@ -252,7 +252,7 @@ end
 -- reads the saved layout itself at the next load: no command, no reload button.
 local function applyLayout(reload)
 	if InCombatLockdown() then
-		print("검성UI: 전투 중에는 레이아웃을 바꿀 수 없습니다.")
+		print(ns.T("검성UI: 전투 중에는 레이아웃을 바꿀 수 없습니다.", "KSUI: the layout can't be changed in combat."))
 		return
 	end
 
@@ -280,7 +280,8 @@ local function applyLayout(reload)
 		end
 	end
 	if accountLayouts >= Constants.EditModeConsts.EditModeMaxLayoutsPerType then
-		print("검성UI: 계정 레이아웃이 가득 찼습니다. 편집 모드에서 하나를 지워주세요.")
+		print(ns.T("검성UI: 계정 레이아웃이 가득 찼습니다. 편집 모드에서 하나를 지워주세요.",
+			"KSUI: your account layouts are full. Delete one in Edit Mode."))
 		return
 	end
 
@@ -344,7 +345,8 @@ function ns.InitLayoutSettings()
 	SettingsPanel:HookScript("OnHide", function()
 		if changedNow then
 			changedNow = false
-			print("검성UI: 바뀐 위치 설정은 다음 접속이나 /reload 때 적용됩니다.")
+			print(ns.T("검성UI: 바뀐 위치 설정은 다음 접속이나 /reload 때 적용됩니다.",
+				"KSUI: changed positions apply at your next login or /reload."))
 		end
 	end)
 	local unload = CreateFrame("Frame")

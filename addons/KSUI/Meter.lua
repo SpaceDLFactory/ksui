@@ -14,12 +14,12 @@ local UNKNOWN = { r = 0.6, g = 0.6, b = 0.6 }
 -- fights Blizzard keeps. The reset button on the title's right clears every fight. Clicking a row opens that unit's
 -- spells beside the meter.
 local MODES = {
-	{ type = Enum.DamageMeterType.DamageDone, label = "피해량" },
-	{ type = Enum.DamageMeterType.HealingDone, label = "치유량" },
-	{ type = Enum.DamageMeterType.DamageTaken, label = "받은 피해" },
+	{ type = Enum.DamageMeterType.DamageDone, label = ns.T("피해량", "Damage") },
+	{ type = Enum.DamageMeterType.HealingDone, label = ns.T("치유량", "Healing") },
+	{ type = Enum.DamageMeterType.DamageTaken, label = ns.T("받은 피해", "Damage taken") },
 }
-local CURRENT = { type = Enum.DamageMeterSessionType.Current, label = "현재" }
-local OVERALL = { type = Enum.DamageMeterSessionType.Overall, label = "전체" }
+local CURRENT = { type = Enum.DamageMeterSessionType.Current, label = ns.T("현재", "Current") }
+local OVERALL = { type = Enum.DamageMeterSessionType.Overall, label = ns.T("전체", "Overall") }
 local EVENTS = {
 	"DAMAGE_METER_COMBAT_SESSION_UPDATED", "DAMAGE_METER_CURRENT_SESSION_UPDATED", "DAMAGE_METER_RESET",
 	-- A session that was locked during combat can be read again afterwards.
@@ -112,7 +112,8 @@ local function openDetail(row)
 		return
 	end
 	if issecretvalue(source.guid) or issecretvalue(source.creatureID) then
-		print("검성UI: 전투 중에는 스킬 상세를 열 수 없습니다. 전투가 끝나면 다시 눌러주세요.")
+		print(ns.T("검성UI: 전투 중에는 스킬 상세를 열 수 없습니다. 전투가 끝나면 다시 눌러주세요.",
+			"KSUI: spell details can't open in combat. Click again when the fight is over."))
 		return
 	end
 	if detailSource and detailSource.guid == source.guid and detailSource.creatureID == source.creatureID then
@@ -131,14 +132,14 @@ local function sessionMenu(owner, root)
 		selected = option
 		ns.RefreshMeter()
 	end
-	root:CreateTitle("전투 선택")
+	root:CreateTitle(ns.T("전투 선택", "Choose a fight"))
 	-- Newest first; ids grow with each fight.
 	local fights = C_DamageMeter.GetAvailableCombatSessions()
 	table.sort(fights, function(a, b) return a.sessionID > b.sessionID end)
 	for i = 1, math.min(#fights, MENU_FIGHTS) do
 		local past = fights[i]
 		-- Blizzard names a fight after its main enemy.
-		local label = past.name and past.name ~= "" and past.name or ("전투 " .. past.sessionID)
+		local label = past.name and past.name ~= "" and past.name or (ns.T("전투 ", "Fight ") .. past.sessionID)
 		if past.durationSeconds then
 			label = ("%s [%s]"):format(label, SecondsToClock(past.durationSeconds))
 		end
@@ -236,7 +237,7 @@ function ns.InitMeter()
 	reset:SetWidth(48)
 	reset.label = ns.OutlinedText(reset)
 	reset.label:SetPoint("RIGHT", -4, 0)
-	reset.label:SetText("초기화")
+	reset.label:SetText(ns.T("초기화", "Reset"))
 	reset.label:SetTextColor(0.7, 0.7, 0.7)
 	reset:SetScript("OnClick", ns.ResetMeter)
 

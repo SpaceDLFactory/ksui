@@ -105,9 +105,10 @@ function ns.OnReadyCheck()
 		end
 	end
 	if #lines > 0 then
-		print("검성UI 준비 확인: 빠진 버프 - " .. table.concat(lines, " / "))
+		print(ns.T("검성UI 준비 확인: 빠진 버프 - ", "KSUI ready check: missing buffs - ") .. table.concat(lines, " / "))
 	end
 	if unreadable > 0 then
-		print(("검성UI 준비 확인: %d명은 지금 버프를 확인할 수 없습니다."):format(unreadable))
+		print(ns.T("검성UI 준비 확인: %d명은 지금 버프를 확인할 수 없습니다.",
+			"KSUI ready check: %d players' buffs can't be read right now."):format(unreadable))
 	end
 end

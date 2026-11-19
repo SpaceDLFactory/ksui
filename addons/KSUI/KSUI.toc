@@ -1,5 +1,6 @@
 ## Interface: 16001
-## Title: 검성UI
+## Title: Kumsung UI
+## Title-koKR: 검성UI
 ## IconTexture: Interface\AddOns\KSUI\icon
 ## Notes: Configurable dark reskin of the default unit frames and action bars for WoW Forever.
 ## Version: 0.13.5

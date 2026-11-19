@@ -70,8 +70,8 @@ local function noteBlocked(event, addon, call)
 		return
 	end
 	local entry = date("%m-%d %H:%M:%S") .. " " .. event .. " " .. tostring(call)
-		.. (InCombatLockdown() and " (전투 중)" or "")
-	print("검성UI: 막힌 동작 - " .. entry)
+		.. (InCombatLockdown() and ns.T(" (전투 중)", " (in combat)") or "")
+	print(ns.T("검성UI: 막힌 동작 - ", "KSUI: blocked action - ") .. entry)
 	local log = ns.db.blockedLog or {}
 	table.insert(log, entry)
 	while #log > MAX_BLOCKED_LOG do

@@ -568,7 +568,7 @@ local function updateAmmo()
 	else
 		ammoText:SetTextColor(1, 1, 1)
 	end
-	ammoText:SetFormattedText(ns.L.AMMO, count)
+	ammoText:SetFormattedText(ns.T("탄약 %s", "Ammo %s"), count)
 end
 
 local function buildAmmo(player)

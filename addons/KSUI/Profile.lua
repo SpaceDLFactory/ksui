@@ -77,7 +77,7 @@ end
 ns.ExportProfile, ns.ImportProfile = exportString, importString
 
 StaticPopupDialogs.KSUI_EXPORT_PROFILE = {
-	text = ns.L.PROFILE_EXPORT,
+	text = ns.T("설정 문자열을 복사하세요 (Ctrl+C)", "Copy your settings (Ctrl+C)"),
 	button1 = CLOSE,
 	hasEditBox = true,
 	editBoxWidth = 320,
@@ -100,14 +100,15 @@ StaticPopupDialogs.KSUI_EXPORT_PROFILE = {
 local function finishImport(dialog)
 	local applied = importString(dialog:GetEditBox():GetText())
 	if applied then
-		print(ns.L.PROFILE_IMPORTED:format(applied))
+		print(ns.T("검성UI: 설정 %d개를 가져왔습니다. 위치 설정은 다음 접속이나 /reload 때 적용됩니다.",
+			"KSUI: imported %d settings. Position settings apply at your next login or /reload."):format(applied))
 	else
-		print(ns.L.PROFILE_INVALID)
+		print(ns.T("검성UI: 검성UI 설정 문자열이 아닙니다.", "KSUI: that is not a KSUI settings string."))
 	end
 end
 
 StaticPopupDialogs.KSUI_IMPORT_PROFILE = {
-	text = ns.L.PROFILE_IMPORT,
+	text = ns.T("설정 문자열을 붙여넣으세요 (Ctrl+V)", "Paste a settings string (Ctrl+V)"),
 	button1 = ACCEPT,
 	button2 = CANCEL,
 	hasEditBox = true,

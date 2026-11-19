@@ -2114,6 +2114,35 @@ do
 	check("slash commands open the dialogs", state.popups[1][1] == "KSUI_EXPORT_PROFILE" and state.popups[2][1] == "KSUI_IMPORT_PROFILE")
 end
 
+-- On a client in any other language the text is English.
+do
+	local state = { units = { player = mage }, locale = "enUS" }
+	local env = boot(state)
+	check("settings category in English", state.categoryName == "Kumsung UI")
+	check("option label in English", state.headers[2] == "Look" and state.buttons["Apply layout"] ~= nil)
+	state.combat = true
+	env.SlashCmdList.KSUI("layout")
+	check("message in English", state.printed == "KSUI: the layout can't be changed in combat.")
+end
+
+do
+	-- Every string shown in game goes through ns.T; a Korean literal outside it would show as boxes elsewhere.
+	local stray = {}
+	for _, file in ipairs(tocFiles()) do
+		local n = 0
+		for line in io.lines(ADDON_DIR .. file) do
+			n = n + 1
+			local code = line:gsub("%-%-.*", "")
+			for literal in code:gmatch('"([^"]*)"') do
+				if literal:find("[\234-\237]") and not code:find('T%("' .. literal:gsub("%p", "%%%0"), 1) then
+					stray[#stray + 1] = file .. ":" .. n
+				end
+			end
+		end
+	end
+	check("no Korean text outside ns.T: " .. table.concat(stray, ", "), #stray == 0)
+end
+
 -- Blocked actions
 do
 	local state = { units = { player = mage } }
