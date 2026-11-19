@@ -315,6 +315,12 @@ local function world(state)
 		if h == SECRET then return SECRET end
 		return h
 	end
+	-- state.locale is the client's language; KSUI was written on a Korean one.
+	function env.GetLocale() return state.locale or "koKR" end
+	-- state.ammo = count in your quiver, or nil for a class that uses none.
+	env.INVSLOT_AMMO = 0
+	function env.UnitUsesAmmo(u) assert(u == "player"); return state.ammo ~= nil end
+	function env.GetInventoryItemCount(u, slot) assert(u == "player" and slot == 0); return state.ammo end
 	function env.UnitPower(u) return field(u, "power", 50) end
 	function env.UnitPowerMax(u) return field(u, "maxPower", 100) end
 	function env.UnitLevel(u) return field(u, "level", 14) end
@@ -2043,6 +2049,38 @@ local function unitFrame(state, unit)
 	for _, f in ipairs(state.frames) do
 		if f.unit == unit then return f end
 	end
+end
+
+-- Ammo on your health bar
+do
+	local state = { units = { player = mage } }
+	boot(state)
+	local player = unitFrame(state, "player")
+	local text = player.ammo
+	check("ammo text on the player health bar", text.parent == player.health.texts and text.point[1] == "BOTTOMLEFT")
+	check("no ammo text for a class without ammo", text.shown == false)
+end
+
+do
+	local state = { units = { player = { player = true, class = "HUNTER" } }, ammo = 1200 }
+	local env = boot(state)
+	local text = unitFrame(state, "player").ammo
+	check("ammo count shown", text.shown == true and text.format[1] == "탄약 %s" and text.format[2] == 1200
+		and text.textColor[2] == 1)
+	state.ammo = 40
+	fire(env, "BAG_UPDATE")
+	check("low ammo in red", text.format[2] == 40 and text.textColor[1] == 1 and text.textColor[2] == 0.2)
+	state.ammo = SECRET
+	fire(env, "UNIT_INVENTORY_CHANGED", "player")
+	check("secret ammo count passed through", text.format[2] == SECRET and text.textColor[2] == 1)
+	state.settings.ammoCount:SetValue(false)
+	check("ammo count switched off", text.shown == false)
+end
+
+do
+	local state = { units = { player = { player = true, class = "HUNTER" } }, ammo = 1200, locale = "enUS" }
+	boot(state)
+	check("ammo count in English", unitFrame(state, "player").ammo.format[1] == "Ammo %s")
 end
 
 do

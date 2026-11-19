@@ -114,6 +114,7 @@ local function build(blizzard, unit, portraitRight, width, height, parts)
 	for _, text in ipairs({ frame.health.name, frame.health.value, frame.health.absorbValue }) do
 		text:SetParent(texts)
 	end
+	frame.health.texts = texts
 
 	frame.power = statusBar(frame)
 	frame.power:SetPoint("TOP" .. near, frame.health, "BOTTOM" .. near, 0, -GAP)
@@ -511,12 +512,52 @@ local function placeThreatGlow(frame)
 	glow:SetPoint("BOTTOMRIGHT", THREAT_GLOW, -THREAT_GLOW)
 end
 
+-- The ammo a hunter has left, at the bottom left of your health bar; red when it runs low. Read the way
+-- Blizzard_UIPanels_Game/Camelot/PaperDollFrame.lua fills its ammo slot.
+local AMMO_LOW = 100
+local ammoText
+
+local function updateAmmo()
+	if not ammoText then
+		return
+	end
+	local shown = ns.db.ammoCount and UnitUsesAmmo("player")
+	ammoText:SetShown(shown)
+	if not shown then
+		return
+	end
+	local count = GetInventoryItemCount("player", INVSLOT_AMMO)
+	if not issecretvalue(count) and count == nil then
+		count = 0
+	end
+	if not issecretvalue(count) and count < AMMO_LOW then
+		ammoText:SetTextColor(1, 0.2, 0.2)
+	else
+		ammoText:SetTextColor(1, 1, 1)
+	end
+	ammoText:SetFormattedText(ns.L.AMMO, count)
+end
+
+local function buildAmmo(player)
+	ammoText = outlinedText(player.health)
+	-- On the layer above the shield bar, with the bar's other text.
+	ammoText:SetParent(player.health.texts)
+	ammoText:SetPoint("BOTTOMLEFT", 4, 4)
+	player.ammo = ammoText
+	local events = CreateFrame("Frame")
+	events:RegisterUnitEvent("UNIT_INVENTORY_CHANGED", "player")
+	events:RegisterEvent("BAG_UPDATE")
+	events:RegisterEvent("PLAYER_ENTERING_WORLD")
+	events:SetScript("OnEvent", updateAmmo)
+end
+
 function ns.InitUnitFrames()
 	-- Your model may not be loaded yet at login.
 	-- UNIT_LEVEL does not cover your own level; Blizzard_UnitFrame/Mainline/PlayerFrame.lua listens to this instead.
 	local player = build(PlayerFrame, "player", false, WIDTH, HEIGHT,
 		{ PlayerFrame.PlayerFrameContainer, PlayerFrame.PlayerFrameContent.PlayerFrameContentMain })
 	listen(player, "PLAYER_ENTERING_WORLD"):RegisterEvent("PLAYER_LEVEL_CHANGED")
+	buildAmmo(player)
 	threatGlowFrame = player
 	hooksecurefunc("PlayerFrame_UpdateFlashTextureVisuals", function()
 		if ns.db.customUnitFrames then
@@ -555,6 +596,7 @@ function ns.RefreshUnitFrames()
 		placePartyExtras(member, frame)
 	end
 	refreshPartyPlayer()
+	updateAmmo()
 	for _, frame in ipairs(frames) do
 		for _, part in ipairs(frame.blizzardParts) do
 			part:SetAlpha(custom and 0 or 1)

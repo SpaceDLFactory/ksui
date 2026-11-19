@@ -7,6 +7,7 @@
 ## X-License: GPL-3.0-or-later
 ## X-Curse-Project-ID: 1809000
 
+Locale.lua
 Core.lua
 Skin.lua
 UnitFrames.lua
