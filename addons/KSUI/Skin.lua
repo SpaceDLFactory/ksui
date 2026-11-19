@@ -76,6 +76,12 @@ function ns.InitSkin()
 	for i = 1, MAX_BOSS_FRAMES do
 		unitTextures[#unitTextures + 1] = _G["Boss" .. i .. "TargetFrame"].TargetFrameContainer.FrameTexture
 	end
+	-- The swing timers' frames take the same color as the unit frames'.
+	for _, name in ipairs({ "SwingTimerMainHandFrame", "SwingTimerOffHandFrame", "SwingTimerRangedFrame" }) do
+		if _G[name] then
+			unitTextures[#unitTextures + 1] = _G[name]:GetBorder()
+		end
+	end
 	-- Party frames are created the first time the party UI is shown, which can be after login.
 	hooksecurefunc(PartyFrame, "InitializePartyMemberFrames", function()
 		collectPartyTextures()
@@ -207,6 +213,8 @@ function ns.RefreshCVars()
 		SetCVar("threatShowNumeric", ns.db.threatNumbers and "1" or "0")
 		-- Blizzard's own bar text, so it keeps working when health is secret in instances.
 		SetCVar("cooldownViewerEnabled", ns.db.cooldownManager and "1" or "0")
+		-- Blizzard_SwingTimer shows its bars only with this on; the layout places them and keeps them to combat.
+		SetCVar("showSwingTimer", ns.db.swingTimer and "1" or "0")
 		SetCVar("statusTextDisplay", ns.db.healthPercent and "BOTH" or "NUMERIC")
 		SetCVar("showTimestamps", ns.db.chatTimestamps and CHAT_TIMESTAMP or "none")
 		if ns.db.healthPercent then

@@ -610,7 +610,10 @@ local function world(state)
 		CooldownViewerVisibleSetting = { Always = 0, InCombat = 1, Hidden = 2 },
 		EditModeSystem = { ActionBar = 0, CastBar = 1, Minimap = 2, UnitFrame = 3, AuraFrame = 6, ChatFrame = 8, HudTooltip = 11,
 			ObjectiveTracker = 12, MicroMenu = 13, Bags = 14, StatusTrackingBar = 15, DurabilityFrame = 16, CooldownViewer = 20, VehicleLeaveButton = 9, GroupFinder = 27,
-			MainActionBarEndCap = 26, DamageMeter = 23 },
+			MainActionBarEndCap = 26, DamageMeter = 23, SwingTimer = 29 },
+		EditModeSwingTimerSystemIndices = { MainHand = 1, OffHand = 2, Ranged = 3 },
+		EditModeSwingTimerSetting = { Scale = 0, Opacity = 1, Visibility = 2, Width = 3 },
+		EditModeSwingTimerVisibility = { Always = 0, InCombat = 1, Hidden = 2 },
 		DamageMeterType = { DamageDone = 0, HealingDone = 2, DamageTaken = 7 },
 		DamageMeterSessionType = { Overall = 0, Current = 1 },
 		EditModeDamageMeterSetting = { Visibility = 0 },
@@ -694,6 +697,13 @@ local function world(state)
 		TargetFrameContainer = alphaFrame({ FrameTexture = texture() }),
 		TargetFrameContent = { TargetFrameContentMain = alphaFrame() },
 	})
+	-- Blizzard_SwingTimer's bars; state.noSwingTimer leaves them out, as on a client without them.
+	if not state.noSwingTimer then
+		for _, name in ipairs({ "SwingTimerMainHandFrame", "SwingTimerOffHandFrame", "SwingTimerRangedFrame" }) do
+			local border = texture()
+			env[name] = { name = name, GetBorder = function() return border end }
+		end
+	end
 	env.MAX_BOSS_FRAMES = 5
 	for i = 1, env.MAX_BOSS_FRAMES do
 		env["Boss" .. i .. "TargetFrame"] = { TargetFrameContainer = { FrameTexture = texture() } }
@@ -1066,6 +1076,13 @@ local function systems(playerX)
 		{ system = 20, systemIndex = 4, anchorInfo = { point = "BOTTOM", offsetX = 420, offsetY = 430 }, isInDefaultPosition = true },
 		{ system = 9, anchorInfo = { point = "BOTTOM", relativeTo = "MainActionBar" }, isInDefaultPosition = true },
 		{ system = 27, anchorInfo = { point = "CENTER", relativeTo = "Minimap" }, isInDefaultPosition = true },
+		-- Swing timers, as in Blizzard_EditMode/Mainline/EditModePresetLayouts.lua.
+		{ system = 29, systemIndex = 1, anchorInfo = { point = "BOTTOM", offsetY = 450 }, isInDefaultPosition = true,
+			settings = { { setting = 0, value = 5 }, { setting = 2, value = 0 }, { setting = 3, value = 213 } } },
+		{ system = 29, systemIndex = 2, anchorInfo = { point = "BOTTOM", offsetY = 425 }, isInDefaultPosition = true,
+			settings = { { setting = 0, value = 5 }, { setting = 2, value = 0 }, { setting = 3, value = 213 } } },
+		{ system = 29, systemIndex = 3, anchorInfo = { point = "BOTTOM", offsetY = 400 }, isInDefaultPosition = true,
+			settings = { { setting = 0, value = 5 }, { setting = 2, value = 0 }, { setting = 3, value = 213 } } },
 		{ system = 23, anchorInfo = { point = "RIGHT" }, isInDefaultPosition = true, settings = { { setting = 0, value = 0 } } },
 		{ system = 26, systemIndex = 1, anchorInfo = { point = "RIGHT", relativeTo = "MainActionBar" }, isInDefaultPosition = true,
 			settings = { { setting = 0, value = 0 } } },
@@ -1955,6 +1972,45 @@ do
 	local p = env.AlertFrame.point
 	check("alerts start above the cooldown manager, off the minimap", p[1] == "BOTTOM" and p[2] == env.BuffBarCooldownViewer
 		and p[3] == "TOP" and p[5] == 10)
+end
+
+-- Swing timers: Blizzard's bars, switched on by their CVar and stacked on the cooldown manager by the layout.
+do
+	local state = { units = { player = mage } }
+	local env = boot(state)
+	check("swing timer off by default", state.cvars.showSwingTimer == "0")
+	check("swing timer border darkened", env.SwingTimerMainHandFrame:GetBorder().desaturated
+		and near(env.SwingTimerRangedFrame:GetBorder().color[1], 0.278))
+	state.settings.swingTimer:SetValue(true)
+	check("swing timer on", state.cvars.showSwingTimer == "1")
+	check("alerts start above the swing timers", env.AlertFrame.point[2] == env.SwingTimerRangedFrame)
+	state.settings.swingTimer:SetValue(false)
+	check("swing timer off again", state.cvars.showSwingTimer == "0" and env.AlertFrame.point[2] == env.BuffBarCooldownViewer)
+end
+
+do
+	local state = { units = { player = mage }, noSwingTimer = true, savedDB = { swingTimer = true } }
+	local env = boot(state)
+	check("alerts placed without Blizzard's swing timers", env.AlertFrame.point[2] == env.BuffBarCooldownViewer)
+end
+
+do
+	local state = layoutState()
+	runLayout(state)
+	local systems = state.saved.layouts[4].systems
+	local swing = {}
+	for _, system in ipairs(systems) do if system.system == 29 then swing[system.systemIndex] = system end end
+	local main, off, ranged = swing[1], swing[2], swing[3]
+	local function visibility(system)
+		for _, info in ipairs(system.settings) do if info.setting == 2 then return info.value end end
+	end
+	check("main hand timer on the cooldown manager", main.anchorInfo.point == "BOTTOM"
+		and main.anchorInfo.relativeTo == "BuffBarCooldownViewer" and main.anchorInfo.relativePoint == "TOP"
+		and main.anchorInfo.offsetY == 6 and not main.isInDefaultPosition)
+	check("off hand and ranged timers stacked above", off.anchorInfo.relativeTo == "SwingTimerMainHandFrame"
+		and ranged.anchorInfo.relativeTo == "SwingTimerOffHandFrame" and ranged.anchorInfo.offsetY == 4)
+	check("swing timers only in combat", visibility(main) == 1 and visibility(off) == 1 and visibility(ranged) == 1)
+	check("swing timer width left alone", main.settings[3].value == 213)
 end
 
 -- Blocked actions

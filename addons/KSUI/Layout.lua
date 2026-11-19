@@ -74,6 +74,11 @@ local function hideEndCap(system)
 	setValues(system, { [Enum.EditModeMainActionBarEndCapSetting.Hidden] = 1 })
 end
 
+-- Out of combat the swing timers would sit idle over the middle of the screen.
+local function swingInCombat(system)
+	setValues(system, { [Enum.EditModeSwingTimerSetting.Visibility] = Enum.EditModeSwingTimerVisibility.InCombat })
+end
+
 local function moveFrames(layout)
 	local db = ns.db
 	-- Positions are saved as a share of the screen and turned into UI units for this screen.
@@ -96,6 +101,7 @@ local function moveFrames(layout)
 	local bars = Enum.EditModeActionBarSystemIndices
 	local auras = Enum.EditModeAuraFrameSystemIndices
 	local viewers = Enum.EditModeCooldownViewerSystemIndices
+	local timers = Enum.EditModeSwingTimerSystemIndices
 	local kinds = Enum.EditModeSystem
 	local unitFrame, actionBar, castBar = kinds.UnitFrame, kinds.ActionBar, kinds.CastBar
 	local moves = {
@@ -201,6 +207,13 @@ local function moveFrames(layout)
 			[viewers.BuffIcon] = { anchor("BOTTOM", "UtilityCooldownViewer", "TOP", 0, VIEWER_SPACING) },
 			[viewers.BuffBar] = { anchor("BOTTOM", "BuffIconCooldownViewer", "TOP", 0, VIEWER_SPACING) },
 		},
+		-- Blizzard_SwingTimer's bars (shown with the swingTimer option) go on top of that column, in the middle of the
+		-- screen where an eye on the fight finds them. Below the player frame are a shaman's totems, above it the buffs.
+		[kinds.SwingTimer] = {
+			[timers.MainHand] = { anchor("BOTTOM", "BuffBarCooldownViewer", "TOP", 0, VIEWER_SPACING), swingInCombat },
+			[timers.OffHand] = { anchor("BOTTOM", "SwingTimerMainHandFrame", "TOP", 0, BAR_SPACING), swingInCombat },
+			[timers.Ranged] = { anchor("BOTTOM", "SwingTimerOffHandFrame", "TOP", 0, BAR_SPACING), swingInCombat },
+		},
 	}
 	for _, system in ipairs(layout.systems) do
 		local move = moves[system.system] and moves[system.system][system.systemIndex or 0]
@@ -224,7 +237,14 @@ local ALERTS_ABOVE_COOLDOWNS = 10
 
 function ns.PlaceAlerts()
 	AlertFrame:ClearAllPoints()
-	AlertFrame:SetPoint("BOTTOM", BuffBarCooldownViewer, "TOP", 0, ALERTS_ABOVE_COOLDOWNS)
+	-- The swing timers stack on top of the cooldown manager, so alerts start above them while they're on.
+	local below = ns.db.swingTimer and SwingTimerRangedFrame or BuffBarCooldownViewer
+	AlertFrame:SetPoint("BOTTOM", below, "TOP", 0, ALERTS_ABOVE_COOLDOWNS)
+end
+
+function ns.RefreshSwingTimer()
+	ns.RefreshCVars()
+	ns.PlaceAlerts()
 end
 
 -- Saves a copy of the active layout with the frames moved. From the command or the settings button it reloads at once,
