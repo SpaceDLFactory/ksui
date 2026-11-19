@@ -284,7 +284,11 @@ local function world(state)
 		diel:ClearAllPoints()
 		diel:SetPoint("CENTER", 110, 172)
 	end
-	function env.GetCVarBool(name) assert(name == "rotateMinimap"); return state.rotate end
+	function env.GetCVarBool(name)
+		if name == "showSwingTimer" then return state.blizzardSwingTimer == true end
+		assert(name == "rotateMinimap")
+		return state.rotate
+	end
 	function env.issecretvalue(v) return v == SECRET end
 	function env.canaccesstable(t) assert(t ~= SECRET, "secret passed to canaccesstable"); return not t.locked end
 	function env.UnitExists(u) return state.units[u] ~= nil end
@@ -2013,10 +2017,17 @@ do
 end
 
 -- Swing timers: Blizzard's bars, switched on by their CVar and stacked on the cooldown manager by the layout.
+-- The KSUI layout in use: no presets, one account layout named KSUI.
+local function onKSUILayout(state)
+	state.layouts, state.active = { { layoutName = "KSUI", layoutType = 1 } }, 1
+	return state
+end
+
 do
-	local state = { units = { player = mage } }
+	local state = onKSUILayout({ units = { player = mage } })
 	local env = boot(state)
-	check("swing timer off by default", state.cvars.showSwingTimer == "0")
+	check("swing timer starts from Blizzard's switch", env.KSUIDB.swingTimer == false)
+	check("Blizzard's switch left alone at login", state.cvars.showSwingTimer == nil)
 	check("swing timer border darkened", env.SwingTimerMainHandFrame:GetBorder().desaturated
 		and near(env.SwingTimerRangedFrame:GetBorder().color[1], 0.278))
 	state.settings.swingTimer:SetValue(true)
@@ -2024,6 +2035,29 @@ do
 	check("alerts start above the swing timers", env.AlertFrame.point[2] == env.SwingTimerRangedFrame)
 	state.settings.swingTimer:SetValue(false)
 	check("swing timer off again", state.cvars.showSwingTimer == "0" and env.AlertFrame.point[2] == env.BuffBarCooldownViewer)
+	state.combat = true
+	state.settings.swingTimer:SetValue(true)
+	check("swing timer switch waits for combat to end", state.cvars.showSwingTimer == "0")
+	state.combat = false
+	fire(env, "PLAYER_REGEN_ENABLED")
+	check("swing timer switched after combat", state.cvars.showSwingTimer == "1")
+end
+
+do
+	-- Turned on in Blizzard's own settings before KSUI had the option: it stays on.
+	local state = { units = { player = mage }, blizzardSwingTimer = true }
+	local env = boot(state)
+	check("Blizzard's swing timer kept on", env.KSUIDB.swingTimer == true and state.cvars.showSwingTimer == nil)
+	check("alerts left above the cooldown manager under another layout", env.AlertFrame.point[2] == env.BuffBarCooldownViewer)
+	-- Switching to the KSUI layout places them again.
+	onKSUILayout(state)
+	fire(env, "EDIT_MODE_LAYOUTS_UPDATED")
+	-- The last timer queued places the alerts; the one before it is the load-time layout check.
+	check("first update queues the layout check and the alerts", #state.timers == 2)
+	state.timers[#state.timers]()
+	fire(env, "EDIT_MODE_LAYOUTS_UPDATED")
+	check("later updates only place the alerts", #state.timers == 3)
+	check("alerts follow a switch to the KSUI layout", env.AlertFrame.point[2] == env.SwingTimerRangedFrame)
 end
 
 do
@@ -2105,6 +2139,10 @@ do
 	check("out of range, unknown choice, bad color and wrong type refused", env.KSUIDB.cooldownFontSize == 16
 		and env.KSUIDB.gearRole == "AUTO" and env.KSUIDB.artColor == "ff474752" and env.KSUIDB.autoRepair == true)
 	check("unknown keys left out of the saved variables", env.KSUIDB.unknownKey == nil)
+	blobs[2] = { cooldownFontSize = 15.37, fadeAlpha = 0.33, frameXPct = 6.09374 }
+	ns.ImportProfile("KSUI1:bzcbor2")
+	check("imported slider values put on their step", env.KSUIDB.cooldownFontSize == 15 and env.KSUIDB.fadeAlpha == 0.35
+		and env.KSUIDB.frameXPct == 6.1)
 	check("garbage is not a profile", ns.ImportProfile("hello") == nil and ns.ImportProfile("KSUI1:@@@") == nil
 		and ns.ImportProfile("KSUI1:bzcbor9") == nil)
 	env.StaticPopupDialogs.KSUI_IMPORT_PROFILE.EditBoxOnEnterPressed(select(2, editDialog("nope")))

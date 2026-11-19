@@ -55,6 +55,16 @@ local function valid(option, value)
 	return true
 end
 
+-- A slider's value goes onto its nearest step, as the slider would put it; printing to 6 decimals drops the float
+-- noise that 0.1 steps leave behind.
+local function onStep(option, value)
+	if type(value) ~= "number" or not option.step or value ~= value then
+		return value
+	end
+	local stepped = option.min + math.floor((value - option.min) / option.step + 0.5) * option.step
+	return tonumber(("%.6f"):format(stepped))
+end
+
 -- Returns how many settings were applied, or nil when the text isn't a KSUI profile.
 local function importString(text)
 	local values = decode(text)
@@ -63,7 +73,7 @@ local function importString(text)
 	end
 	local applied = 0
 	for _, option in ipairs(ns.OPTIONS) do
-		local value = option.key and values[option.key]
+		local value = option.key and onStep(option, values[option.key])
 		if value ~= nil and valid(option, value) then
 			if ns.db[option.key] ~= value then
 				ns.optionSettings[option.key]:SetValue(value)

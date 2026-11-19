@@ -235,17 +235,46 @@ end
 -- Nothing in Blizzard's code moves that point again.
 local ALERTS_ABOVE_COOLDOWNS = 10
 
+-- Whether the layout in use is KSUI's; a player may have switched to one of their own.
+local function ksuiLayoutActive()
+	local info = C_EditMode.GetLayouts()
+	local active = info.layouts[info.activeLayout - #EditModePresetLayoutManager:GetCopyOfPresetLayouts()]
+	return active ~= nil and active.layoutName == LAYOUT_NAME and active.layoutType == Enum.EditModeLayoutType.Account
+end
+
 function ns.PlaceAlerts()
 	AlertFrame:ClearAllPoints()
-	-- The swing timers stack on top of the cooldown manager, so alerts start above them while they're on.
-	local below = ns.db.swingTimer and SwingTimerRangedFrame or BuffBarCooldownViewer
-	AlertFrame:SetPoint("BOTTOM", below, "TOP", 0, ALERTS_ABOVE_COOLDOWNS)
+	-- KSUI's layout stacks the swing timers on top of the cooldown manager, so alerts start above them while they're
+	-- on. Under another layout the swing timers are wherever that layout has them.
+	local onTimers = ns.db.swingTimer and SwingTimerRangedFrame and ksuiLayoutActive()
+	AlertFrame:SetPoint("BOTTOM", onTimers and SwingTimerRangedFrame or BuffBarCooldownViewer, "TOP", 0, ALERTS_ABOVE_COOLDOWNS)
+end
+
+-- Blizzard has a switch of its own for this CVar, so KSUI writes it only when its option changes, not at every login.
+-- A change during combat waits for it to end, like KSUI's other CVars.
+local swingPending = false
+
+local function applySwingTimer()
+	if InCombatLockdown() then
+		swingPending = true
+		return
+	end
+	swingPending = false
+	SetCVar("showSwingTimer", ns.db.swingTimer and "1" or "0")
 end
 
 function ns.RefreshSwingTimer()
-	ns.RefreshCVars()
+	applySwingTimer()
 	ns.PlaceAlerts()
 end
+
+local swingCombatEnd = CreateFrame("Frame")
+swingCombatEnd:RegisterEvent("PLAYER_REGEN_ENABLED")
+swingCombatEnd:SetScript("OnEvent", function()
+	if swingPending then
+		applySwingTimer()
+	end
+end)
 
 -- Saves a copy of the active layout with the frames moved. From the command or the settings button it reloads at once,
 -- which clears addon taint from Edit Mode. On its own it runs while the UI loads or unloads instead, so Blizzard
@@ -325,9 +354,7 @@ local function applyAtLoad()
 	if ns.db.layoutVersion == version then
 		return
 	end
-	local info = C_EditMode.GetLayouts()
-	local active = info.layouts[info.activeLayout - #EditModePresetLayoutManager:GetCopyOfPresetLayouts()]
-	if active and active.layoutName == LAYOUT_NAME and active.layoutType == Enum.EditModeLayoutType.Account then
+	if ksuiLayoutActive() then
 		applyLayout(false)
 	end
 end
@@ -360,9 +387,15 @@ function ns.InitLayoutSettings()
 	end)
 end
 
+-- The first update is the saved layouts arriving at load. Every update, a switch of layout included, places the
+-- alerts again for the layout now in use.
 local layoutsLoaded = CreateFrame("Frame")
+local loaded = false
 layoutsLoaded:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
-layoutsLoaded:SetScript("OnEvent", function(self)
-	self:UnregisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
-	C_Timer.After(0, applyAtLoad)
+layoutsLoaded:SetScript("OnEvent", function()
+	if not loaded then
+		loaded = true
+		C_Timer.After(0, applyAtLoad)
+	end
+	C_Timer.After(0, ns.PlaceAlerts)
 end)

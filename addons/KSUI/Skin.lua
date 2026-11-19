@@ -213,8 +213,6 @@ function ns.RefreshCVars()
 		SetCVar("threatShowNumeric", ns.db.threatNumbers and "1" or "0")
 		-- Blizzard's own bar text, so it keeps working when health is secret in instances.
 		SetCVar("cooldownViewerEnabled", ns.db.cooldownManager and "1" or "0")
-		-- Blizzard_SwingTimer shows its bars only with this on; the layout places them and keeps them to combat.
-		SetCVar("showSwingTimer", ns.db.swingTimer and "1" or "0")
 		SetCVar("statusTextDisplay", ns.db.healthPercent and "BOTH" or "NUMERIC")
 		SetCVar("showTimestamps", ns.db.chatTimestamps and CHAT_TIMESTAMP or "none")
 		if ns.db.healthPercent then
