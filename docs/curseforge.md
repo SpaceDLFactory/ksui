@@ -20,7 +20,11 @@ It is built on Blizzard's own frames, so it keeps working under instance and rai
 
 ## Features
 
-- **Square unit frames** for player, target, focus and party, with animated 3D portraits, class-colored health, shield (absorb) bars and a threat glow when mobs attack you. Incoming heals show on the health bars; party rows add you, group roles, shields and heals over time, Blizzard's debuffs and an aggro edge. Clicks, menus and auras stay Blizzard's.
+- **Swing timers** (optional): Forever's own main hand, off hand and ranged swing bars, in combat only, stacked on the cooldown manager.
+- **Ammo count** on your health bar for hunters, red when it runs low.
+- **Export and import settings** as one line of text (`/ksui export`, `/ksui import`) to copy them to another character or share them.
+- **English and Korean**: English on every client that isn't Korean.
+- **Square unit frames** for player, target, focus, party, pet and target of target, with animated 3D portraits, class-colored health, shield (absorb) bars and a threat glow when mobs attack you. Incoming heals show on the health bars; party rows add you, group roles, shields and heals over time, Blizzard's debuffs and an aggro edge. Clicks, menus and auras stay Blizzard's.
 - **Bottom layout**: experience bar, minimap, cast bar and cooldown manager stacked in the middle, action bars on both sides of the minimap. Applied automatically as the UI loads.
 - **Clickable cooldown manager**: click an icon in Blizzard's cooldown manager to cast that spell.
 - **Quest guide arrow** on the minimap pointing at your tracked quest, with the distance, and optional auto-tracking of the nearest quest.
@@ -57,7 +61,11 @@ WoW Forever(인터페이스 16001)용 오픈소스 UI입니다. 기본 UI를 어
 
 ## 주요 기능
 
-- **네모 유닛 프레임** — 내·대상·주시·파티 프레임을 네모 초상화(움직이는 3D)와 직업색 체력바로, 보호막은 하늘색 막대로, 어그로를 받으면 테두리가 빛남. 들어올 힐 표시, 파티 칸에 나·역할·보호막과 지속 힐·디버프·어그로 테두리. 클릭·메뉴·버프는 블리자드 그대로.
+- **자동 공격 타이머(선택)** — Forever에 들어 있는 블리자드 스윙 타이머(주 무기·보조 무기·원거리)를 전투 중에만 쿨다운 관리자 위에 쌓아 표시.
+- **남은 탄약** — 사냥꾼 체력바에 남은 탄약 수, 모자라면 빨갛게.
+- **설정 내보내기·가져오기** — 설정을 한 줄 문자열로 만들어 다른 캐릭터로 옮기거나 공유(`/ksui export`, `/ksui import`).
+- **영어 지원** — 한국어가 아닌 클라이언트에서는 영어로 표시.
+- **네모 유닛 프레임** — 내·대상·주시·파티·소환수·대상의 대상 프레임을 네모 초상화(움직이는 3D)와 직업색 체력바로, 보호막은 하늘색 막대로, 어그로를 받으면 테두리가 빛남. 들어올 힐 표시, 파티 칸에 나·역할·보호막과 지속 힐·디버프·어그로 테두리. 클릭·메뉴·버프는 블리자드 그대로.
 - **하단 배치** — 경험치바, 미니맵, 시전바, 쿨다운 관리자를 가운데 아래로 쌓고, 단축바를 미니맵 양옆에 배치. 로딩 때 알아서 적용.
 - **누르는 쿨다운 관리자** — 쿨다운 관리자 아이콘을 누르면 그 스킬을 씁니다.
 - **퀘스트 길안내 화살표** — 미니맵 모서리에서 추적 중인 퀘스트 방향과 거리를 가리키고, 가장 가까운 퀘스트를 자동으로 추적할 수도 있습니다.
