@@ -309,6 +309,11 @@ local function world(state)
 	env.C_UnitAuras = {
 		GetUnitAuras = function(unit, filter, max)
 			assert(filter == "HELPFUL")
+			-- The client raises an error for addon code asking while auras are secret, or for a unit restricted on
+			-- its own.
+			if state.secretAuras or (state.auraBlocked or {})[unit] then
+				error("GetUnitAuras(): Auras cannot be accessed when secret while tainted by 'KSUI'")
+			end
 			return (state.myAuras or {})[unit] or {}
 		end,
 		GetAuraDuration = function(unit, id) return { unit = unit, id = id } end,
@@ -338,7 +343,8 @@ local function world(state)
 	function env.GetCreatureDifficultyColor(level) return level == 999 and { r = 1, g = 0.1, b = 0.1 } or { r = 0.5, g = 1, b = 0 } end
 	function env.UnitName(u) return field(u, "name", "Name"), state.units[u].surname end
 	function env.UnitIsVisible(u) return not state.units[u].far end
-	env.C_Secrets = { ShouldUnitIdentityBeSecret = function(u) return state.units[u].hiddenIdentity == true end }
+	env.C_Secrets = { ShouldUnitIdentityBeSecret = function(u) return state.units[u].hiddenIdentity == true end,
+		ShouldAurasBeSecret = function() return state.secretAuras == true end }
 	function env.SetPortraitTexture(t, u, noMask) t.portraitOf = { u, noMask } end
 	function env.AbbreviateNumbers(n) if n == SECRET then return SECRET end; return tostring(n) end
 	env.tostring = tostring
@@ -594,6 +600,9 @@ local function world(state)
 	-- state.auras are your buffs; state.unitAuras[unit] anyone else's.
 	function env.C_UnitAuras.GetAuraDataByIndex(unit, i, filter)
 		assert(filter == "HELPFUL")
+		if state.secretAuras or (state.auraBlocked or {})[unit] then
+			error("GetAuraDataByIndex(): Auras cannot be accessed when secret while tainted by 'KSUI'")
+		end
 		local list = (state.unitAuras or {})[unit] or (env.UnitIsUnit(unit, "player") and state.auras) or {}
 		local name = list[i]
 		if name == "SECRET_RESULT" then return SECRET end
@@ -1585,6 +1594,17 @@ do
 	printed = {}
 	fire(env, "READY_CHECK")
 	check("locked aura table not indexed", table.concat(printed):find("1명은", 1, true) ~= nil)
+	state.unitAuras.raid5 = { "인내의 기원" }
+	state.auraBlocked = { raid5 = true }
+	printed = {}
+	fire(env, "READY_CHECK")
+	check("restricted unit counted as unreadable", table.concat(printed):find("1명은", 1, true) ~= nil)
+	state.auraBlocked = nil
+	state.secretAuras = true
+	printed = {}
+	fire(env, "READY_CHECK")
+	check("no aura asked for while auras are secret", table.concat(printed):find("명은", 1, true) ~= nil)
+	state.secretAuras = nil
 
 	state.unitAuras = { raid1 = { "인내의 기원", "신비한 지능" }, raid2 = { "인내의 기원" },
 		raid3 = { "인내의 기원", "신비한 지능" }, raid4 = { "인내의 기원" }, raid5 = { "인내의 기원" } }
@@ -2465,6 +2485,18 @@ do
 	state.myAuras = { party1 = SECRET }
 	fire(env, "UNIT_AURA", "party1")
 	check("an unreadable aura list hides them", frame.hots[1].shown == false)
+	-- In instances asking at all is an error for addon code; KSUI doesn't ask then.
+	state.myAuras = { party1 = { { name = "소생", icon = "renew", auraInstanceID = 7, duration = 15 } } }
+	state.secretAuras = true
+	fire(env, "UNIT_AURA", "party1")
+	check("auras not asked for while secret", frame.hots[1].shown == false)
+	state.secretAuras = nil
+	state.auraBlocked = { party1 = true }
+	fire(env, "UNIT_AURA", "party1")
+	check("a unit restricted on its own is skipped", frame.hots[1].shown == false)
+	state.auraBlocked = nil
+	fire(env, "UNIT_AURA", "party1")
+	check("shown again once readable", frame.hots[1].shown == true)
 	check("party member filled", frame.health.barValue == 80 and frame.health.name.format[3] == "Friend")
 	member.Portrait:SetAlpha(0.7)
 	check("Blizzard's portrait pulse stays hidden", member.Portrait.alpha == 0)

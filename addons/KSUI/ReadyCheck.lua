@@ -40,11 +40,15 @@ end
 
 -- Returns nil when the game hides the unit's auras from addons.
 local function buffNames(unit)
+	-- Where auras are secret the query raises an error for addon code; the pcall covers a unit restricted on its own.
+	if C_Secrets.ShouldAurasBeSecret() then
+		return nil
+	end
 	local names = {}
 	for i = 1, MAX_AURAS do
-		local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, "HELPFUL")
+		local ok, aura = pcall(C_UnitAuras.GetAuraDataByIndex, unit, i, "HELPFUL")
 		-- The result itself is checked before it is tested or indexed.
-		if issecretvalue(aura) then
+		if not ok or issecretvalue(aura) then
 			return nil
 		end
 		if not aura then

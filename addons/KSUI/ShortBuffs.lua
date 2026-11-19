@@ -54,11 +54,25 @@ function ns.CreateShortBuffIcons(parent, size, corner, x, y, grow, level)
 	return icons
 end
 
+-- Where auras are secret (instances, encounters), the aura queries raise an error for addon code instead of
+-- returning secrets, so they aren't asked then. The pcall covers a unit restricted on its own. Returns nil when the
+-- unit's auras can't be read.
+function ns.ReadAuras(query, ...)
+	if C_Secrets.ShouldAurasBeSecret() then
+		return nil
+	end
+	local ok, result = pcall(query, ...)
+	if ok then
+		return result
+	end
+end
+
 function ns.UpdateShortBuffIcons(icons, unit)
 	local shown = {}
 	if unit and UnitExists(unit) then
-		local auras = C_UnitAuras.GetUnitAuras(unit, "HELPFUL")
-		if not issecretvalue(auras) and canaccesstable(auras) then
+		local auras = ns.ReadAuras(C_UnitAuras.GetUnitAuras, unit, "HELPFUL")
+		-- The result itself is checked before it is tested.
+		if not issecretvalue(auras) and auras and canaccesstable(auras) then
 			for _, aura in ipairs(auras) do
 				if #shown < COUNT and isShortBuff(aura) then
 					shown[#shown + 1] = aura
