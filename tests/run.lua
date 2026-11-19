@@ -710,6 +710,18 @@ local function world(state)
 			env[name] = { name = name, GetBorder = function() return border end }
 		end
 	end
+	-- Your pet's frame and its parts, which are globals in Blizzard_UnitFrame/Mainline/PetFrame.xml.
+	env.PetFrame = alphaFrame({ name = "PetFrame" })
+	for _, part in ipairs({ "PetFrameTexture", "PetPortrait", "PetName", "PetFrameHealthBar", "PetFrameManaBar",
+		"PetFrameFlash", "PetAttackModeTexture" }) do
+		env[part] = alphaFrame({ name = part })
+	end
+	-- The target's target frame, which Blizzard redraws from TargetFrame's updates.
+	if not state.noToT then
+		env.TargetFrameToT = alphaFrame({ name = "TargetFrameToT", FrameTexture = alphaFrame(), Portrait = alphaFrame(),
+			Name = alphaFrame(), HealthBar = alphaFrame(), ManaBar = alphaFrame() })
+		function env.TargetFrameToT:Update() state.totRedraws = (state.totRedraws or 0) + 1 end
+	end
 	env.MAX_BOSS_FRAMES = 5
 	for i = 1, env.MAX_BOSS_FRAMES do
 		env["Boss" .. i .. "TargetFrame"] = { TargetFrameContainer = { FrameTexture = texture() } }
@@ -2049,6 +2061,54 @@ local function unitFrame(state, unit)
 	for _, f in ipairs(state.frames) do
 		if f.unit == unit then return f end
 	end
+end
+
+-- Your pet and your target's target
+do
+	local state = { units = { player = mage, pet = { player = false, name = "Wolf", health = 30, maxHealth = 60 },
+		target = { player = false }, targettarget = mage } }
+	local env = boot(state)
+	local pet = unitFrame(state, "pet")
+	check("square pet frame inside Blizzard's", pet.parent == env.PetFrame and pet.size[1] == 120 and pet.size[2] == 46)
+	check("Blizzard's pet art faded", env.PetFrameTexture.alpha == 0 and env.PetFrameHealthBar.alpha == 0
+		and env.PetPortrait.alpha == 0)
+	fire(env, "UNIT_HEALTH", "pet")
+	check("pet health shown", pet.health.barValue == 30 and pet.health.range[2] == 60)
+	local tot = unitFrame(state, "targettarget")
+	check("square target of target inside Blizzard's", tot.parent == env.TargetFrameToT
+		and env.TargetFrameToT.FrameTexture.alpha == 0)
+	state.units.targettarget = { player = true, class = "MAGE", health = 12 }
+	local loads = tot.model.modelLoads or 0
+	env.TargetFrameToT:Update()
+	check("target of target follows Blizzard's redraws", state.totRedraws == 1 and tot.health.barValue == 12)
+	check("no model reload on a redraw", (tot.model.modelLoads or 0) == loads)
+	fire(env, "UNIT_TARGET", "target")
+	check("model reloads when the target picks a new target", tot.model.modelLoads == loads + 1)
+	state.settings.customUnitFrames:SetValue(false)
+	check("Blizzard's pet and target of target art back", env.PetFrameTexture.alpha == 1 and env.TargetFrameToT.Portrait.alpha == 1)
+	state.units.targettarget.health = 5
+	env.TargetFrameToT:Update()
+	check("no redraw while switched off", tot.health.barValue == 12)
+end
+
+-- A secure part can't fade in combat; it does when combat ends.
+do
+	local state = { units = { player = mage, targettarget = mage } }
+	local env = boot(state)
+	local bar = env.TargetFrameToT.HealthBar
+	function bar:IsProtected() return true end
+	state.combat = true
+	state.settings.customUnitFrames:SetValue(false)
+	check("secure part left alone in combat", bar.alpha == 0 and env.TargetFrameToT.Portrait.alpha == 1)
+	state.combat = false
+	fire(env, "PLAYER_REGEN_ENABLED")
+	check("secure part caught up after combat", bar.alpha == 1)
+end
+
+do
+	local state = { units = { player = mage }, noToT = true }
+	boot(state)
+	check("works without a target of target frame", unitFrame(state, "targettarget") == nil)
 end
 
 -- Ammo on your health bar

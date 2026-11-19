@@ -9,7 +9,7 @@ local OPTIONS = {
 	{ key = "healthPercent", label = "체력바에 퍼센트 표시", default = true, refresh = "RefreshHealthPercent" },
 	{ key = "cropIcons", label = "아이콘 테두리 잘라내기", default = true, refresh = "RefreshSkin" },
 	{ key = "squareMinimap", label = "미니맵 네모로", default = true, refresh = "RefreshMinimap" },
-	{ key = "customUnitFrames", label = "내/대상/주시 프레임 네모로", default = true, refresh = "RefreshUnitFrames", layout = true },
+	{ key = "customUnitFrames", label = "내/대상/주시/소환수/대상의 대상 프레임 네모로", default = true, refresh = "RefreshUnitFrames", layout = true },
 	{ key = "animatedPortraits", label = "움직이는 초상화", default = true, refresh = "RefreshUnitFrames" },
 	{ key = "ammoCount", label = "내 체력바에 남은 탄약 (사냥꾼)", default = true, refresh = "RefreshUnitFrames" },
 	-- Blizzard's own look comes back only when it restyles a plate, so turning this off needs a reload.

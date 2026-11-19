@@ -7,6 +7,8 @@ local _, ns = ...
 
 -- Each fits inside Blizzard's frame (232 x 100, party 120 x 53), which stays the click area.
 local WIDTH, HEIGHT = 224, 56
+-- Your pet and your target's target, inside Blizzard's 120 x 49 frames, which stay the click area.
+local SMALL_WIDTH, SMALL_HEIGHT = 120, 46
 -- Party frames get the full height so the name and the health number don't overlap, and run past Blizzard's
 -- 120-wide frame to the right so the bars have room.
 local PARTY_WIDTH, PARTY_HEIGHT = 200, 52
@@ -512,6 +514,37 @@ local function placeThreatGlow(frame)
 	glow:SetPoint("BOTTOMRIGHT", THREAT_GLOW, -THREAT_GLOW)
 end
 
+-- Your pet, under your frame where Blizzard_UnitFrame/Mainline/PetFrame.xml puts its own. Blizzard's happiness icon
+-- hangs off the right of its frame, so it stays beside ours.
+local function buildPet()
+	local pet = build(PetFrame, "pet", false, SMALL_WIDTH, SMALL_HEIGHT, {
+		PetFrameTexture, PetPortrait, PetName, PetFrameHealthBar, PetFrameManaBar, PetFrameFlash, PetAttackModeTexture,
+	})
+	listen(pet, "UNIT_PET")
+end
+
+-- Blizzard gives "targettarget" no unit events and redraws its frame from TargetFrame's updates instead
+-- (Blizzard_UnitFrame/Mainline/TargetFrame.lua), so ours follows those. The model only loads again when the target
+-- picks a new target, not at every redraw.
+local function buildTargetOfTarget()
+	local blizzard = TargetFrameToT
+	if not blizzard then
+		return
+	end
+	local tot = build(blizzard, "targettarget", true, SMALL_WIDTH, SMALL_HEIGHT, {
+		blizzard.FrameTexture, blizzard.Portrait, blizzard.Name, blizzard.HealthBar, blizzard.ManaBar,
+	})
+	listen(tot, "PLAYER_TARGET_CHANGED"):RegisterUnitEvent("UNIT_TARGET", "target")
+	hooksecurefunc(blizzard, "Update", function()
+		if ns.db.customUnitFrames and UnitExists(tot.unit) then
+			updateHealth(tot)
+			updatePower(tot)
+			updateColor(tot)
+			updateName(tot)
+		end
+	end)
+end
+
 -- The ammo a hunter has left, at the bottom left of your health bar; red when it runs low. Read the way
 -- Blizzard_UIPanels_Game/Camelot/PaperDollFrame.lua fills its ammo slot.
 local AMMO_LOW = 100
@@ -570,6 +603,8 @@ function ns.InitUnitFrames()
 	local focus = build(FocusFrame, "focus", true, WIDTH, HEIGHT, targetParts(FocusFrame))
 	listen(focus, "PLAYER_FOCUS_CHANGED")
 	followAuras(FocusFrame, focus)
+	buildPet()
+	buildTargetOfTarget()
 	hooksecurefunc(PartyFrame, "InitializePartyMemberFrames", function()
 		attachPartyFrames()
 		ns.RefreshUnitFrames()
@@ -586,6 +621,13 @@ function ns.InitUnitFrames()
 			placePartyExtras(member, frame)
 		end
 		refreshPartyPlayer()
+		-- Catches up the secure parts that couldn't fade while the setting changed in combat.
+		local alpha = ns.db.customUnitFrames and 0 or 1
+		for _, frame in ipairs(frames) do
+			for _, part in ipairs(frame.blizzardParts) do
+				part:SetAlpha(alpha)
+			end
+		end
 	end)
 end
 
@@ -599,7 +641,10 @@ function ns.RefreshUnitFrames()
 	updateAmmo()
 	for _, frame in ipairs(frames) do
 		for _, part in ipairs(frame.blizzardParts) do
-			part:SetAlpha(custom and 0 or 1)
+			-- Some parts are secure (the target of target's health bar); those change after combat.
+			if not (InCombatLockdown() and part.IsProtected and part:IsProtected()) then
+				part:SetAlpha(custom and 0 or 1)
+			end
 		end
 		frame:SetShown(custom)
 		if custom then
