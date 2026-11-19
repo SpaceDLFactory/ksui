@@ -452,7 +452,27 @@ local function world(state)
 	function env.StaticPopup_Show(name, _, _, data) state.popups[#state.popups + 1] = { name, data } end
 	function env.StaticPopup_FindVisible(name) return state.visiblePopup == name and state.popupDialog or nil end
 	function env.StaticPopup_Hide(name) state.hiddenPopup = name end
-	env.CLOSE = "닫기"
+	env.CLOSE, env.ACCEPT, env.CANCEL = "닫기", "수락", "취소"
+	-- A stand-in for the client's encoders that round-trips and fails on anything it didn't make, as the real ones
+	-- raise errors on broken input. state.blobs keeps every serialized table.
+	state.blobs = state.blobs or {}
+	local function unwrap(tag, s)
+		if type(s) ~= "string" or s:sub(1, #tag) ~= tag then error("bad input") end
+		return s:sub(#tag + 1)
+	end
+	env.C_EncodingUtil = {
+		SerializeCBOR = function(value) state.blobs[#state.blobs + 1] = copy(value); return "cbor" .. #state.blobs end,
+		DeserializeCBOR = function(s)
+			local blob = state.blobs[tonumber(unwrap("cbor", s))]
+			if blob == nil then error("bad input") end
+			return copy(blob)
+		end,
+		CompressString = function(s) return "z" .. s end,
+		DecompressString = function(s) return unwrap("z", s) end,
+		EncodeBase64 = function(s) return "b" .. s end,
+		DecodeBase64 = function(s) return unwrap("b", s) end,
+	}
+	env.pcall = pcall
 	env.SOUNDKIT = { TELL_MESSAGE = 3081 }
 	function env.PlaySound(id) state.sounds[#state.sounds + 1] = id end
 	-- Quests: state.npc = { gossipActive = {...}, gossipAvailable = {...}, active = {...}, available = {...},
@@ -2029,6 +2049,69 @@ do
 		and ranged.anchorInfo.relativeTo == "SwingTimerOffHandFrame" and ranged.anchorInfo.offsetY == 4)
 	check("swing timers only in combat", visibility(main) == 1 and visibility(off) == 1 and visibility(ranged) == 1)
 	check("swing timer width left alone", main.settings[3].value == 213)
+end
+
+-- Settings as a string: exported from one character, imported on another.
+local function editDialog(text)
+	local box = { text = text }
+	function box:GetText() return self.text end
+	function box:SetText(t) self.text = t end
+	function box:HighlightText() end
+	function box:SetFocus() end
+	local dialog = {}
+	function dialog:GetEditBox() return box end
+	function dialog:Hide() self.hidden = true end
+	box.GetParent = function() return dialog end
+	return dialog, box
+end
+
+do
+	local blobs = {}
+	local from = { units = { player = mage }, blobs = blobs }
+	local env = boot(from)
+	from.settings.dispellableOnly:SetValue(true)
+	from.settings.cooldownFontSize:SetValue(24)
+	from.settings.gearRole:SetValue("TANK")
+	check("export buttons in the quick section", from.buttons["설정 내보내기"] ~= nil and from.buttons["설정 가져오기"] ~= nil)
+	local dialog, box = editDialog("")
+	env.StaticPopupDialogs.KSUI_EXPORT_PROFILE.OnShow(dialog)
+	local text = box.text
+	check("export string has its prefix", text:sub(1, 6) == "KSUI1:")
+	check("export box has no length limit", env.StaticPopupDialogs.KSUI_EXPORT_PROFILE.maxLetters == 0
+		and env.StaticPopupDialogs.KSUI_IMPORT_PROFILE.maxLetters == 0)
+	local exported = blobs[#blobs]
+	check("only panel settings exported", exported.cooldownFontSize == 24 and exported.positionsVersion == nil
+		and exported.blockedLog == nil)
+
+	local to = { units = { player = mage }, blobs = blobs }
+	local env2 = boot(to)
+	local importDialog = editDialog("  " .. text .. "\n")
+	env2.StaticPopupDialogs.KSUI_IMPORT_PROFILE.OnAccept(importDialog)
+	check("imported values saved", env2.KSUIDB.dispellableOnly == true and env2.KSUIDB.cooldownFontSize == 24
+		and env2.KSUIDB.gearRole == "TANK")
+	check("import ran the setting's refresh", to.cvars.raidFramesDisplayOnlyDispellableDebuffs == "1")
+	check("import reported", to.printed:find("가져왔습니다") ~= nil)
+end
+
+do
+	local blobs = { {
+		cooldownFontSize = 99, fadeAlpha = 0.5, gearRole = "BARD", artColor = "red", autoRepair = "yes",
+		chatLinks = false, unknownKey = true,
+	} }
+	local state = { units = { player = mage }, blobs = blobs }
+	local env, ns = boot(state)
+	local applied = ns.ImportProfile("KSUI1:bzcbor1")
+	check("only valid values imported", applied == 2 and env.KSUIDB.fadeAlpha == 0.5 and env.KSUIDB.chatLinks == false)
+	check("out of range, unknown choice, bad color and wrong type refused", env.KSUIDB.cooldownFontSize == 16
+		and env.KSUIDB.gearRole == "AUTO" and env.KSUIDB.artColor == "ff474752" and env.KSUIDB.autoRepair == true)
+	check("unknown keys left out of the saved variables", env.KSUIDB.unknownKey == nil)
+	check("garbage is not a profile", ns.ImportProfile("hello") == nil and ns.ImportProfile("KSUI1:@@@") == nil
+		and ns.ImportProfile("KSUI1:bzcbor9") == nil)
+	env.StaticPopupDialogs.KSUI_IMPORT_PROFILE.EditBoxOnEnterPressed(select(2, editDialog("nope")))
+	check("bad paste reported", state.printed:find("설정 문자열이 아닙니다") ~= nil)
+	env.SlashCmdList.KSUI("export")
+	env.SlashCmdList.KSUI("import")
+	check("slash commands open the dialogs", state.popups[1][1] == "KSUI_EXPORT_PROFILE" and state.popups[2][1] == "KSUI_IMPORT_PROFILE")
 end
 
 -- Blocked actions

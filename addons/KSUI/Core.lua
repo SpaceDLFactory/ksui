@@ -136,6 +136,10 @@ SlashCmdList.KSUI = function(message)
 		ns.ResetMeter()
 	elseif message == "stats" then
 		ns.PrintGearStats()
+	elseif message == "export" then
+		ns.ShowExportProfile()
+	elseif message == "import" then
+		ns.ShowImportProfile()
 	else
 		Settings.OpenToCategory(ns.category:GetID())
 	end

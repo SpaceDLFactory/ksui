@@ -27,4 +27,5 @@ Merchant.lua
 ReadyCheck.lua
 Gear.lua
 Tracking.lua
+Profile.lua
 Options.lua

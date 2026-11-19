@@ -64,6 +64,9 @@ local OPTIONS = {
 	{ key = "groupTopPct", label = "파티/공격대 위쪽 여백 (화면 높이 %)", default = 1.7, min = 0, max = 50, step = 0.1, layout = true },
 }
 
+ns.OPTIONS = OPTIONS
+ns.optionSettings = {}
+
 local VAR_TYPES = { boolean = "Boolean", number = "Number", string = "String" }
 
 local function addControl(category, setting, option)
@@ -101,6 +104,10 @@ function ns.RegisterOptions()
 		"현재 편집 모드 레이아웃을 KSUI로 복사해 아래 위치로 옮기고 UI를 다시 불러옵니다. (/ksui layout)", true))
 	layout:AddInitializer(CreateSettingsButtonInitializer(
 		"UI 다시 불러오기", "다시 불러오기", ReloadUI, "UI를 다시 불러옵니다. (/reload)", true))
+	layout:AddInitializer(CreateSettingsButtonInitializer(
+		ns.L.PROFILE_EXPORT_BUTTON, ns.L.PROFILE_EXPORT_BUTTON_TEXT, ns.ShowExportProfile, ns.L.PROFILE_EXPORT_TOOLTIP, true))
+	layout:AddInitializer(CreateSettingsButtonInitializer(
+		ns.L.PROFILE_IMPORT_BUTTON, ns.L.PROFILE_IMPORT_BUTTON_TEXT, ns.ShowImportProfile, ns.L.PROFILE_IMPORT_TOOLTIP, true))
 
 	for _, option in ipairs(OPTIONS) do
 		if option.header then
@@ -109,6 +116,8 @@ function ns.RegisterOptions()
 			local varType = Settings.VarType[VAR_TYPES[type(option.default)]]
 			local setting = Settings.RegisterAddOnSetting(
 				category, "KSUI_" .. option.key, option.key, ns.db, varType, option.label, option.default)
+			-- Profile.lua sets imported values through these, so their refreshes run as from the panel.
+			ns.optionSettings[option.key] = setting
 			if option.refresh or option.layout then
 				setting:SetValueChangedCallback(function(...)
 					if option.refresh then
