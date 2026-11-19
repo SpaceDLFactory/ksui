@@ -65,6 +65,13 @@ local function restyle(unitFrame)
 		unitFrame.ksuiSkull:SetSize(SKULL_SIZE, SKULL_SIZE)
 		unitFrame.ksuiSkull:SetPoint("RIGHT", bar, "RIGHT", -2, 0)
 	end
+	-- Blizzard restyles a plate while setting it up, before it has a unit; the level comes once the unit is set, when
+	-- the plate is restyled again (onPlateAdded).
+	if not unitFrame.unit then
+		unitFrame.ksuiLevel:Hide()
+		unitFrame.ksuiSkull:Hide()
+		return
+	end
 	-- The level can be secret in instances; then it is shown as is, in white.
 	local level = UnitLevel(unitFrame.unit)
 	-- Bosses and units far above you report -1 and get the skull instead.

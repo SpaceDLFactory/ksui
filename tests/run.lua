@@ -2438,6 +2438,11 @@ do
 	bar:UpdateSelectionBorder()
 	check("back to black when no longer the target", bar.bgTexture.color[1] == 0)
 	check("inside the edge the bar stays black", bar.ksuiBackground.fill[1] == 0 and bar.ksuiBackground.shown ~= false)
+	unitFrame.unit = nil
+	unitFrame:UpdateAnchors()
+	check("a plate restyled before it has a unit shows no level", unitFrame.ksuiLevel.shown == false
+		and unitFrame.ksuiSkull.shown == false)
+	unitFrame.unit = "nameplate1"
 	check("Blizzard restyle is overridden", bar.bgTexture.file == "Interface\\ChatFrame\\ChatFrameBackground"
 		and unitFrame.PlayerLevelDiffFrame.alpha == 0)
 	env.NamePlateDriverFrame:OnNamePlateAdded("nameplate2")
