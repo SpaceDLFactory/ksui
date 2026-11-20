@@ -270,9 +270,17 @@ end
 
 local swingCombatEnd = CreateFrame("Frame")
 swingCombatEnd:RegisterEvent("PLAYER_REGEN_ENABLED")
-swingCombatEnd:SetScript("OnEvent", function()
-	if swingPending then
-		applySwingTimer()
+swingCombatEnd:RegisterEvent("CVAR_UPDATE")
+swingCombatEnd:SetScript("OnEvent", function(_, event, name)
+	if event == "PLAYER_REGEN_ENABLED" then
+		if swingPending then
+			applySwingTimer()
+		end
+	-- Switched in Blizzard's own settings: KSUI's option, alerts and exported profile follow. A KSUI change still
+	-- waiting for combat to end wins.
+	elseif name == "showSwingTimer" and not swingPending then
+		ns.db.swingTimer = GetCVarBool("showSwingTimer")
+		ns.PlaceAlerts()
 	end
 end)
 

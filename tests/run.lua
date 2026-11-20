@@ -491,6 +491,7 @@ local function world(state)
 		DecodeBase64 = function(s) return unwrap("b", s) end,
 	}
 	env.pcall = pcall
+	env.unpack = unpack
 	env.SOUNDKIT = { TELL_MESSAGE = 3081 }
 	function env.PlaySound(id) state.sounds[#state.sounds + 1] = id end
 	-- Quests: state.npc = { gossipActive = {...}, gossipAvailable = {...}, active = {...}, available = {...},
@@ -752,7 +753,12 @@ local function world(state)
 		end
 	end
 	-- Your pet's frame and its parts, which are globals in Blizzard_UnitFrame/Mainline/PetFrame.xml.
-	env.PetFrame = alphaFrame({ name = "PetFrame" })
+	env.PetFrame = alphaFrame({ name = "PetFrame", hitInsets = { 7, 66, 6, 7 } })
+	env.PetFrame.GetHitRectInsets = function(self) return unpack(self.hitInsets) end
+	env.PetFrame.SetHitRectInsets = function(self, ...)
+		assert(not state.combat, "PetFrame hit rect changed in combat")
+		self.hitInsets = { ... }
+	end
 	for _, part in ipairs({ "PetFrameTexture", "PetPortrait", "PetName", "PetFrameHealthBar", "PetFrameManaBar",
 		"PetFrameFlash", "PetAttackModeTexture" }) do
 		env[part] = alphaFrame({ name = part })
@@ -2069,6 +2075,11 @@ do
 	state.combat = false
 	fire(env, "PLAYER_REGEN_ENABLED")
 	check("swing timer switched after combat", state.cvars.showSwingTimer == "1")
+	-- Switched off in Blizzard's own settings: KSUI's option and the alerts follow.
+	state.cvars.showSwingTimer = "0"
+	state.blizzardSwingTimer = false
+	fire(env, "CVAR_UPDATE", "showSwingTimer", "0")
+	check("Blizzard's switch followed", env.KSUIDB.swingTimer == false and env.AlertFrame.point[2] == env.BuffBarCooldownViewer)
 end
 
 do
@@ -2175,6 +2186,14 @@ do
 		and ns.ImportProfile("KSUI1:bzcbor9") == nil)
 	env.StaticPopupDialogs.KSUI_IMPORT_PROFILE.EditBoxOnEnterPressed(select(2, editDialog("nope")))
 	check("bad paste reported", state.printed:find("설정 문자열이 아닙니다") ~= nil)
+	blobs[3] = { cooldownFontSize = 9.9, frameXPct = 30.04 }
+	ns.ImportProfile("KSUI1:bzcbor3")
+	check("values just out of range refused, not rounded in", env.KSUIDB.cooldownFontSize == 15
+		and env.KSUIDB.frameXPct == 6.1)
+	blobs[4] = { cooldownFontSize = "bad" }
+	state.printed = nil
+	env.StaticPopupDialogs.KSUI_IMPORT_PROFILE.EditBoxOnEnterPressed(select(2, editDialog("KSUI1:bzcbor4")))
+	check("a profile with nothing usable is reported as not a profile", state.printed:find("설정 문자열이 아닙니다") ~= nil)
 	env.SlashCmdList.KSUI("export")
 	env.SlashCmdList.KSUI("import")
 	check("slash commands open the dialogs", state.popups[1][1] == "KSUI_EXPORT_PROFILE" and state.popups[2][1] == "KSUI_IMPORT_PROFILE")
@@ -2248,6 +2267,7 @@ do
 	local env = boot(state)
 	local pet = unitFrame(state, "pet")
 	check("square pet frame inside Blizzard's", pet.parent == env.PetFrame and pet.size[1] == 120 and pet.size[2] == 46)
+	check("the whole square pet frame takes clicks", table.concat(env.PetFrame.hitInsets, ",") == "0,0,0,0")
 	check("Blizzard's pet art faded", env.PetFrameTexture.alpha == 0 and env.PetFrameHealthBar.alpha == 0
 		and env.PetPortrait.alpha == 0)
 	fire(env, "UNIT_HEALTH", "pet")
@@ -2262,11 +2282,18 @@ do
 	check("no model reload on a redraw", (tot.model.modelLoads or 0) == loads)
 	fire(env, "UNIT_TARGET", "target")
 	check("model reloads when the target picks a new target", tot.model.modelLoads == loads + 1)
+	-- Blizzard's bars follow health from OnUpdate between redraws; ours read it a few times a second.
+	state.units.targettarget.health = 8
+	tot.scripts.OnUpdate(tot, 0.1)
+	check("target of target health not read every frame", tot.health.barValue == 12)
+	tot.scripts.OnUpdate(tot, 0.15)
+	check("target of target health followed between redraws", tot.health.barValue == 8)
 	state.settings.customUnitFrames:SetValue(false)
 	check("Blizzard's pet and target of target art back", env.PetFrameTexture.alpha == 1 and env.TargetFrameToT.Portrait.alpha == 1)
+	check("Blizzard's pet click area back", table.concat(env.PetFrame.hitInsets, ",") == "7,66,6,7")
 	state.units.targettarget.health = 5
 	env.TargetFrameToT:Update()
-	check("no redraw while switched off", tot.health.barValue == 12)
+	check("no redraw while switched off", tot.health.barValue == 8)
 end
 
 -- A secure part can't fade in combat; it does when combat ends.
@@ -2281,6 +2308,7 @@ do
 	state.combat = false
 	fire(env, "PLAYER_REGEN_ENABLED")
 	check("secure part caught up after combat", bar.alpha == 1)
+	check("pet click area and auras put back after combat", table.concat(env.PetFrame.hitInsets, ",") == "7,66,6,7")
 end
 
 do
@@ -2490,6 +2518,14 @@ do
 	check("only shields and heals over time, by name", frame.hots[1].shown and frame.hots[1].texture.file == "renew"
 		and frame.hots[2].texture.file == "shield" and frame.hots[3].shown == false)
 	check("time shown when the game gives one", frame.hots[1].cooldown.duration.id == 7 and frame.hots[2].cooldown.duration == nil)
+	-- A readable list can hold an aura that isn't, and the duration query can be refused on its own.
+	table.insert(state.myAuras.party1, 1, { locked = true })
+	local getDuration = env.C_UnitAuras.GetAuraDuration
+	env.C_UnitAuras.GetAuraDuration = function() error("GetAuraDuration(): Auras cannot be accessed when secret") end
+	fire(env, "UNIT_AURA", "party1")
+	check("an unreadable aura in the list is skipped", frame.hots[1].shown and frame.hots[1].texture.file == "renew")
+	check("a refused duration leaves the icon without a timer", frame.hots[1].cooldown.duration == nil)
+	env.C_UnitAuras.GetAuraDuration = getDuration
 	state.myAuras = { party1 = SECRET }
 	fire(env, "UNIT_AURA", "party1")
 	check("an unreadable aura list hides them", frame.hots[1].shown == false)
@@ -2608,10 +2644,15 @@ do
 	check("raid frames get the shield, not the blessing", #raidIcons == 4 and raidIcons[1].shown
 		and raidIcons[1].texture.file == "shield" and raidIcons[2].shown == false)
 	check("other frames that code draws are left alone", #plateIcons == 0)
-	state.myAuras.raid3 = {}
-	-- Where auras are restricted the event's unit can be secret; it is not compared then.
+	-- Where auras are restricted the event's unit can be secret; it is not compared then, and every frame is redrawn,
+	-- clearing the icons that can't be read any more.
+	state.secretAuras = true
 	fire(env, "UNIT_AURA", SECRET)
-	check("a secret aura event unit is ignored", raidIcons[1].shown == true)
+	check("a secret aura event unit clears what can't be read", raidIcons[1].shown == false)
+	state.secretAuras = nil
+	fire(env, "UNIT_AURA", "raid3")
+	check("icons come back when auras can be read", raidIcons[1].shown == true)
+	state.myAuras.raid3 = {}
 	fire(env, "UNIT_AURA", "raid3")
 	check("they follow the unit's auras", raidIcons[1].shown == false)
 
@@ -2719,6 +2760,16 @@ do
 	state.tooltipPostCalls[2](env.GameTooltip)
 	check("a player's name in class color", env.GameTooltipTextLeft1.textColor[1] == 0.2)
 	check("and whom they target", env.GameTooltip.lines[1][1] == "대상: Bob")
+	-- Blizzard's GetUnit tests a unit token that can be secret, which raises when run from addon code.
+	local getUnit = env.GameTooltip.GetUnit
+	env.GameTooltip.GetUnit = function() error("attempt to perform boolean test on a secret value") end
+	local lines = #env.GameTooltip.lines
+	state.tooltipPostCalls[2](env.GameTooltip)
+	check("a tooltip whose unit can't be read is left as it is", #env.GameTooltip.lines == lines)
+	env.GameTooltip.GetUnit = function() return nil, SECRET end
+	state.tooltipPostCalls[2](env.GameTooltip)
+	check("a secret tooltip unit is not tested", #env.GameTooltip.lines == lines)
+	env.GameTooltip.GetUnit = getUnit
 
 	-- name, isTank, isHealer, isDamage, isNativeRealm, isCrossShard, allowMultipleRoles, inviterGUID
 	fire(env, "PARTY_INVITE_REQUEST", "Guy", false, false, false, true, false, false, "stranger")

@@ -23,8 +23,10 @@ local function onUnitTooltip(tooltip)
 	if not ns.db.tooltipExtras or tooltip ~= GameTooltip then
 		return
 	end
-	local _, unit = tooltip:GetUnit()
-	if not unit or issecretvalue(unit) then
+	-- GetUnit is Blizzard's Lua (TooltipUtil.GetDisplayedUnit), which tests a unit token that can be secret where
+	-- identities are restricted; run from here, that test raises, so it is caught. The secret check comes first.
+	local ok, _, unit = pcall(tooltip.GetUnit, tooltip)
+	if not ok or issecretvalue(unit) or not unit then
 		return
 	end
 	local _, class = UnitClass(unit)

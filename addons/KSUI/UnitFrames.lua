@@ -318,7 +318,9 @@ local threatGlowFrame
 
 -- Blizzard pulses the portrait's alpha on a member in trouble, so it is put back to zero after each change.
 local function keepPortraitHidden(portrait)
-	if ns.db.customUnitFrames and portrait:GetAlpha() ~= 0 then
+	-- GetAlpha is secret once anyone has passed a secret alpha in, so that isn't compared.
+	local alpha = portrait:GetAlpha()
+	if ns.db.customUnitFrames and (issecretvalue(alpha) or alpha ~= 0) then
 		portrait:SetAlpha(0)
 	end
 end
@@ -391,20 +393,26 @@ local BLIZZARD_DEBUFFS_X, BLIZZARD_DEBUFFS_Y = 48, -43
 -- debuff icons' frame hangs off Blizzard's secure frame, so it moves only out of combat.
 local function placePartyExtras(member, frame)
 	local glow, debuffs = member.Flash, member.AuraFrameContainer
-	glow:ClearAllPoints()
 	if ns.db.customUnitFrames then
+		glow:ClearAllPoints()
 		glow:SetParent(frame)
 		glow:SetTexture(FLAT)
 		glow:SetDrawLayer("BACKGROUND", -8)
 		glow:SetPoint("TOPLEFT", -PARTY_GLOW, PARTY_GLOW)
 		glow:SetPoint("BOTTOMRIGHT", PARTY_GLOW, -PARTY_GLOW)
-	else
+		member.ksuiGlowMoved = true
+	elseif member.ksuiGlowMoved then
 		glow:SetParent(member)
 		glow:SetDrawLayer("ARTWORK")
-		member:UpdateArt()
 	end
 	if InCombatLockdown() then
 		return
+	end
+	-- Blizzard redraws its art, glow included, which sets the unit on its secure button again (PartyMemberFrame.lua,
+	-- ToPlayerArt), so that waits for combat to end, and only happens when KSUI had moved the glow.
+	if not ns.db.customUnitFrames and member.ksuiGlowMoved then
+		member.ksuiGlowMoved = nil
+		member:UpdateArt()
 	end
 	debuffs:ClearAllPoints()
 	if ns.db.customUnitFrames then
@@ -526,6 +534,8 @@ end
 -- Blizzard gives "targettarget" no unit events and redraws its frame from TargetFrame's updates instead
 -- (Blizzard_UnitFrame/Mainline/TargetFrame.lua), so ours follows those. The model only loads again when the target
 -- picks a new target, not at every redraw.
+local TOT_INTERVAL = 0.2
+
 local function buildTargetOfTarget()
 	local blizzard = TargetFrameToT
 	if not blizzard then
@@ -541,6 +551,20 @@ local function buildTargetOfTarget()
 			updatePower(tot)
 			updateColor(tot)
 			updateName(tot)
+		end
+	end)
+	-- Between those, Blizzard's own bars follow health and power from their OnUpdate (UnitFrame.lua), which no hook
+	-- sees, so ours read them a few times a second while shown.
+	local elapsed = 0
+	tot:SetScript("OnUpdate", function(_, delta)
+		elapsed = elapsed + delta
+		if elapsed < TOT_INTERVAL then
+			return
+		end
+		elapsed = 0
+		if UnitExists(tot.unit) then
+			updateHealth(tot)
+			updatePower(tot)
 		end
 	end)
 end
@@ -583,6 +607,8 @@ local function buildAmmo(player)
 	events:RegisterEvent("PLAYER_ENTERING_WORLD")
 	events:SetScript("OnEvent", updateAmmo)
 end
+
+local anchorsPending, placeAnchors = false, nil
 
 function ns.InitUnitFrames()
 	-- Your model may not be loaded yet at login.
@@ -628,7 +654,28 @@ function ns.InitUnitFrames()
 				part:SetAlpha(alpha)
 			end
 		end
+		if anchorsPending then
+			placeAnchors()
+		end
 	end)
+end
+
+-- Blizzard's own anchoring puts the auras back when the option is off; the hook moves them when it's on. Both hang
+-- off secure frames, so a change in combat waits for it to end.
+function placeAnchors()
+	anchorsPending = false
+	-- Blizzard_UnitFrame/Mainline/PetFrame.xml only takes clicks on its portrait end; KSUI's pet frame is the full width.
+	if not PetFrame.ksuiHitInsets then
+		PetFrame.ksuiHitInsets = { PetFrame:GetHitRectInsets() }
+	end
+	if ns.db.customUnitFrames then
+		PetFrame:SetHitRectInsets(0, 0, 0, 0)
+	else
+		PetFrame:SetHitRectInsets(unpack(PetFrame.ksuiHitInsets))
+	end
+	placeThreatGlow(threatGlowFrame)
+	TargetFrame:AnchorAuraContainer()
+	FocusFrame:AnchorAuraContainer()
 end
 
 function ns.RefreshUnitFrames()
@@ -653,11 +700,10 @@ function ns.RefreshUnitFrames()
 			updateHots(frame)
 		end
 	end
-	-- Blizzard's own anchoring puts the auras back when the option is off; the hook moves them when it's on.
-	if not InCombatLockdown() then
-		placeThreatGlow(threatGlowFrame)
-		TargetFrame:AnchorAuraContainer()
-		FocusFrame:AnchorAuraContainer()
+	if InCombatLockdown() then
+		anchorsPending = true
+	else
+		placeAnchors()
 	end
 end
 

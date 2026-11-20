@@ -45,10 +45,8 @@ end
 EventUtil.ContinueOnAddOnLoaded(addonName, function()
 	KSUIDB = KSUIDB or {}
 	convertPositions(KSUIDB)
-	-- Blizzard has its own switch for the swing timers; KSUI's option starts from it instead of turning it off.
-	if KSUIDB.swingTimer == nil then
-		KSUIDB.swingTimer = GetCVarBool("showSwingTimer")
-	end
+	-- Blizzard has its own switch for the swing timers, which may have changed since; KSUI's option follows it.
+	KSUIDB.swingTimer = GetCVarBool("showSwingTimer")
 	ns.db = KSUIDB
 	ns.RegisterOptions()
 end)

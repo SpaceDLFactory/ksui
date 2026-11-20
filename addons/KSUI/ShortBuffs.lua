@@ -25,6 +25,10 @@ local function isShortBuff(aura)
 			end
 		end
 	end
+	-- A readable list can still hold an aura that isn't.
+	if issecretvalue(aura) or not canaccesstable(aura) then
+		return false
+	end
 	local name, id = aura.name, aura.auraInstanceID
 	if issecretvalue(name) or issecretvalue(id) then
 		return false
@@ -86,8 +90,11 @@ function ns.UpdateShortBuffIcons(icons, unit)
 		if aura then
 			icon.texture:SetTexture(aura.icon)
 			local duration = aura.duration
-			if not issecretvalue(duration) and duration > 0 then
-				icon.cooldown:SetCooldownFromDurationObject(C_UnitAuras.GetAuraDuration(unit, aura.auraInstanceID))
+			-- The duration query has the same guard as the list, and returns nothing once the aura is gone.
+			local object = not issecretvalue(duration) and duration > 0
+				and ns.ReadAuras(C_UnitAuras.GetAuraDuration, unit, aura.auraInstanceID)
+			if object then
+				icon.cooldown:SetCooldownFromDurationObject(object)
 			else
 				icon.cooldown:Clear()
 			end
@@ -126,13 +133,11 @@ function ns.InitShortBuffs()
 	events:RegisterEvent("GROUP_ROSTER_UPDATE")
 	events:SetScript("OnEvent", function(_, event, unit)
 		-- UNIT_AURA's unit can itself be secret where auras are (SecretWhenAurasRestricted), so it isn't compared
-		-- then; nothing could be read anyway.
-		if event == "UNIT_AURA" and issecretvalue(unit) then
-			return
-		end
+		-- then; every frame is redrawn instead, which clears icons nothing can be read for any more.
+		local all = event == "GROUP_ROSTER_UPDATE" or issecretvalue(unit)
 		for frame, icons in pairs(compactFrames) do
 			local shown = frame.displayedUnit
-			if event == "GROUP_ROSTER_UPDATE" or shown == unit then
+			if all or shown == unit then
 				ns.UpdateShortBuffIcons(icons, shown)
 			end
 		end

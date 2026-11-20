@@ -58,7 +58,8 @@ end
 -- A slider's value goes onto its nearest step, as the slider would put it; printing to 6 decimals drops the float
 -- noise that 0.1 steps leave behind.
 local function onStep(option, value)
-	if type(value) ~= "number" or not option.step or value ~= value then
+	-- Out of range stays as it is, so valid() turns it down instead of the rounding pulling it back in.
+	if type(value) ~= "number" or not option.step or value ~= value or value < option.min or value > option.max then
 		return value
 	end
 	local stepped = option.min + math.floor((value - option.min) / option.step + 0.5) * option.step
@@ -109,7 +110,8 @@ StaticPopupDialogs.KSUI_EXPORT_PROFILE = {
 
 local function finishImport(dialog)
 	local applied = importString(dialog:GetEditBox():GetText())
-	if applied then
+	-- A string with nothing usable in it isn't a profile either.
+	if applied and applied > 0 then
 		print(ns.T("검성UI: 설정 %d개를 가져왔습니다. 위치 설정은 다음 접속이나 /reload 때 적용됩니다.",
 			"KSUI: imported %d settings. Position settings apply at your next login or /reload."):format(applied))
 	else
