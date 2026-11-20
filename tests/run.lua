@@ -507,7 +507,10 @@ local function world(state)
 	function env.GetNumActiveQuests() return #(state.npc.active or {}) end
 	function env.GetActiveTitle(i) return "Quest", state.npc.active[i] end
 	function env.GetNumAvailableQuests() return #(state.npc.available or {}) end
-	function env.IsAvailableQuestTrivial(i) return state.npc.available[i] end
+	-- Forever has no IsAvailableQuestTrivial; Blizzard's quest frame reads GetAvailableQuestInfo's first value.
+	function env.GetAvailableQuestInfo(i) return state.npc.available[i] end
+	function env.GetQuestID() return state.npc.questID or 0 end
+	function env.GetQuestMoneyToGet() return state.npc.money or 0 end
 	env.SelectActiveQuest, env.SelectAvailableQuest = pick("greetingActive"), pick("greetingAvailable")
 	env.AcceptQuest, env.CompleteQuest, env.GetQuestReward = pick("accept"), pick("complete"), pick("reward")
 	function env.QuestFlagsPVP() return state.npc.pvp end
@@ -559,6 +562,7 @@ local function world(state)
 		SetSuperTrackedQuestID = function(id) state.quest.supertracked = id end }
 	env.C_Navigation = { GetDistance = function() return 2066.87 end }
 	env.C_QuestLog = {
+		IsQuestTrivial = function(id) return state.npc.trivialQuest == id end,
 		GetNextWaypointForMap = function() local w = state.quest.waypoint; if w then return w[1], w[2] end end,
 		GetQuestsOnMap = function() return state.quest.onMap end,
 		GetNumQuestLogEntries = function() return #state.quest.log end,
@@ -625,7 +629,7 @@ local function world(state)
 		SellAllJunkItems = function() state.sold = state.sold + 1 end,
 	}
 	function env.CanMerchantRepair() return state.canRepair end
-	function env.GetRepairAllCost() return state.repairCost or 0, true end
+	function env.GetRepairAllCost() return state.repairCost or 0, not state.repairRefused end
 	function env.GetMoney() return state.money or 0 end
 	function env.RepairAllItems(guild) assert(guild == nil); state.repaired = state.repaired + 1 end
 	env.C_CurrencyInfo = { GetCoinTextureString = function(amount) return amount .. "c" end }
@@ -968,6 +972,14 @@ do
 	check("old position becomes the same share of the reference screen", near(env.KSUIDB.frameXPct, 50 / (1200 * 16 / 9) * 100)
 		and env.KSUIDB.frameX == nil and env.KSUIDB.positionsVersion == 2)
 	check("missing value defaulted", env.KSUIDB.frameYPct == 18.3)
+end
+
+do
+	-- A damaged or hand-edited position doesn't stop the load.
+	local state = { units = { player = mage }, savedDB = { frameX = "invalid", groupXPct = "x" } }
+	local env = boot(state)
+	check("a position that isn't a number is dropped", env.KSUIDB.frameXPct == 6.1 and env.KSUIDB.frameX == nil
+		and type(env.KSUIDB.groupXPct) == "number")
 end
 
 -- Square minimap
@@ -1418,6 +1430,19 @@ do
 	state.saved = nil
 	fire(env, "PLAYER_LOGOUT")
 	check("nothing pending, nothing saved at logout", state.saved == nil)
+
+	-- Loading into combat: saved when the UI unloads instead.
+	do
+		local cstate = layoutState({ active = 2 })
+		local cenv = boot(cstate)
+		cstate.combat = true
+		fire(cenv, "EDIT_MODE_LAYOUTS_UPDATED")
+		for _, timer in ipairs(cstate.timers) do timer() end
+		check("a layout due while loading into combat waits", cstate.saved == nil and cenv.KSUIDB.layoutPending == true)
+		cstate.combat = false
+		fire(cenv, "PLAYER_LOGOUT")
+		check("and is saved when the UI unloads", cstate.saved ~= nil)
+	end
 	state.settings.fadeAlpha:SetValue(0.5)
 	fire(env, "PLAYER_LOGOUT")
 	check("other settings don't touch the layout", state.saved == nil)
@@ -1561,6 +1586,10 @@ do
 	state.canRepair, state.money, state.junk = false, 5000, 2
 	fire(env, "MERCHANT_SHOW")
 	check("vendor without repair only sells", state.repaired == 1 and state.sold == 2)
+	state.canRepair, state.repairRefused, state.repairCost, state.junk = true, true, 300, 0
+	fire(env, "MERCHANT_SHOW")
+	check("gear this vendor won't repair is left alone", state.repaired == 1)
+	state.repairRefused = nil
 	state.settings.sellJunk:SetValue(false)
 	state.settings.autoRepair:SetValue(false)
 	state.canRepair = true
@@ -2260,6 +2289,22 @@ local function unitFrame(state, unit)
 	end
 end
 
+-- Your own party row gets shield and HoT icons like the others.
+do
+	local state = { units = { player = mage } }
+	local env = boot(state)
+	local button, row
+	for _, f in ipairs(state.frames) do
+		if f.parent == env.PartyFrame and f.template == "SecureUnitButtonTemplate" then button = f end
+		if button and f.unit == "player" and f.parent == button then row = f end
+	end
+	check("your party row has shield and HoT icons", row ~= nil and row.hots ~= nil and #row.hots == 4
+		and row.blizzardHots == nil)
+	state.myAuras = { player = { { name = "소생", icon = "renew", auraInstanceID = 7, duration = 0 } } }
+	fire(env, "UNIT_AURA", "player")
+	check("and they show your heals over time", row.hots[1].shown and row.hots[1].texture.file == "renew")
+end
+
 -- Your pet and your target's target
 do
 	local state = { units = { player = mage, pet = { player = false, name = "Wolf", health = 30, maxHealth = 60 },
@@ -2706,6 +2751,9 @@ do
 	state.npc.pvp = true
 	fire(env, "QUEST_DETAIL")
 	check("a PvP quest's confirmation stays yours", #state.picked == 4)
+	state.npc.pvp, state.npc.questID, state.npc.trivialQuest = false, 31, 31
+	fire(env, "QUEST_DETAIL")
+	check("a gray quest opened straight away is not picked up", #state.picked == 4)
 	state.npc.completable = true
 	fire(env, "QUEST_PROGRESS")
 	check("handed in", state.picked[5][1] == "complete")
@@ -2715,6 +2763,10 @@ do
 	state.npc.choices = 1
 	fire(env, "QUEST_COMPLETE")
 	check("a single reward is taken", state.picked[6][1] == "reward" and state.picked[6][2] == 1)
+	state.npc.money = 500
+	fire(env, "QUEST_COMPLETE")
+	check("a quest that costs gold waits for Blizzard's confirmation", #state.picked == 6)
+	state.npc.money = nil
 	state.shift = true
 	fire(env, "QUEST_PROGRESS")
 	check("Shift skips it all", #state.picked == 6)
@@ -2975,6 +3027,10 @@ do
 	check("class color, creature gray", first.color[1] == 0.2 and second.color[1] == 0.6)
 	check("unused rows hidden and window fits", meter.rows[3].shown == false and meter.height == 18 + 2 * 16 + 1)
 	check("Blizzard's data source switched on", state.cvars.damageMeterEnabled == "1")
+	state.cvars.damageMeterEnabled = nil
+	state.settings.damageMeter:SetValue(false)
+	state.settings.damageMeter:SetValue(true)
+	check("switching the meter on switches the data source on", state.cvars.damageMeterEnabled == "1")
 
 	local button, reset
 	for _, f in ipairs(state.frames) do

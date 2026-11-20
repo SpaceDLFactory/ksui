@@ -32,7 +32,11 @@ local function convertPositions(db)
 	local version = db.positionsVersion
 	for _, entry in ipairs(OLD_POSITIONS) do
 		local old, key, length = entry[1], entry[2], entry[3]
-		if db[old] ~= nil and db[key] == nil then
+		-- A hand-edited or damaged value that isn't a number is dropped rather than stopping the load.
+		if type(db[key]) ~= "number" then
+			db[key] = nil
+		end
+		if type(db[old]) == "number" and db[key] == nil then
 			db[key] = db[old] / length * 100
 		elseif version == nil and db[key] ~= nil then
 			db[key] = db[key] * 768 / ns.REFERENCE_HEIGHT

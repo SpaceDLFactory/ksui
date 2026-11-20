@@ -105,6 +105,7 @@ end
 -- Blizzard's raid frames, and its party frames in raid style, are named CompactRaid... and CompactParty...; the same
 -- code also draws frames that addons may not touch, which are left alone.
 local compactFrames = {}
+local clearedSecret = false
 
 local function isGroupFrame(frame)
 	if frame:IsForbidden() then
@@ -134,7 +135,13 @@ function ns.InitShortBuffs()
 	events:SetScript("OnEvent", function(_, event, unit)
 		-- UNIT_AURA's unit can itself be secret where auras are (SecretWhenAurasRestricted), so it isn't compared
 		-- then; every frame is redrawn instead, which clears icons nothing can be read for any more.
-		local all = event == "GROUP_ROSTER_UPDATE" or issecretvalue(unit)
+		local secret = event == "UNIT_AURA" and issecretvalue(unit)
+		-- Once cleared there is nothing more to clear until auras can be read again.
+		if secret and clearedSecret then
+			return
+		end
+		clearedSecret = secret
+		local all = event == "GROUP_ROSTER_UPDATE" or secret
 		for frame, icons in pairs(compactFrames) do
 			local shown = frame.displayedUnit
 			if all or shown == unit then

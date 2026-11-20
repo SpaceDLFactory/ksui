@@ -8,7 +8,11 @@ function ns.OnMerchantShow()
 		print(ns.T("검성UI: 잡템을 팔았습니다.", "KSUI: sold junk."))
 	end
 	if db.autoRepair and CanMerchantRepair() then
-		local cost = GetRepairAllCost()
+		-- The second value is false when the vendor won't repair what you have; Blizzard greys its button out then.
+		local cost, canRepair = GetRepairAllCost()
+		if not canRepair then
+			return
+		end
 		if cost > 0 and cost <= GetMoney() then
 			RepairAllItems()
 			print(ns.T("검성UI: 수리했습니다. ", "KSUI: repaired for ") .. C_CurrencyInfo.GetCoinTextureString(cost))

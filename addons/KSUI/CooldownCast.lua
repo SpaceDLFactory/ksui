@@ -45,10 +45,13 @@ local function sync()
 		local viewer = _G[name]
 		local active = ns.db.cooldownCast and viewer.visibleSetting == Enum.CooldownViewerVisibleSetting.Always
 		for _, item in ipairs(viewer:GetItemFrames()) do
-			local spellID = item:GetBaseSpellID()
-			local button = buttonFor(item)
-			button:SetAttribute("spell", spellID)
-			button:SetShown(active and spellID ~= nil)
+			-- No secure button goes on Blizzard's icons until the option is used.
+			local button = buttons[item] or (active and buttonFor(item))
+			if button then
+				local spellID = item:GetBaseSpellID()
+				button:SetAttribute("spell", spellID)
+				button:SetShown(active and spellID ~= nil)
+			end
 		end
 	end
 end

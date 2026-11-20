@@ -1,5 +1,5 @@
 -- Accepts and turns in quests as their windows open. Holding Shift while talking to the NPC skips it all, a reward
--- with more than one choice is left to you, and gray (trivial) quests are not picked up.
+-- with more than one choice is left to you, as is a quest that costs gold, and gray (trivial) quests are not picked up.
 
 local _, ns = ...
 
@@ -38,8 +38,9 @@ local function onGreeting()
 			return
 		end
 	end
+	-- Read the way Blizzard_UIPanels_Game/Mainline/QuestFrame.lua reads it; the first value is isTrivial.
 	for i = 1, GetNumAvailableQuests() do
-		if not IsAvailableQuestTrivial(i) then
+		if not GetAvailableQuestInfo(i) then
 			SelectAvailableQuest(i)
 			return
 		end
@@ -50,8 +51,11 @@ local EVENTS = {
 	GOSSIP_SHOW = onGossip,
 	QUEST_GREETING = onGreeting,
 	QUEST_DETAIL = function()
-		-- PvP quests ask for a confirmation, which stays yours.
-		if not skip() and not QuestFlagsPVP() then
+		-- PvP quests ask for a confirmation, which stays yours. An NPC can open a gray quest straight away, without
+		-- the list, so it is checked here too.
+		local questID = GetQuestID()
+		local trivial = questID and questID > 0 and C_QuestLog.IsQuestTrivial(questID)
+		if not skip() and not QuestFlagsPVP() and not trivial then
 			AcceptQuest()
 		end
 	end,
@@ -61,7 +65,10 @@ local EVENTS = {
 		end
 	end,
 	QUEST_COMPLETE = function()
-		if not skip() and GetNumQuestChoices() <= 1 then
+		-- A quest that costs gold asks Blizzard's confirmation first (QuestRewardCompleteButton_OnClick); that stays
+		-- yours too.
+		local money = GetQuestMoneyToGet()
+		if not skip() and GetNumQuestChoices() <= 1 and not (money and money > 0) then
 			GetQuestReward(GetNumQuestChoices())
 		end
 	end,

@@ -14,8 +14,10 @@ local function exportString()
 			values[option.key] = ns.db[option.key]
 		end
 	end
-	local packed = C_EncodingUtil.CompressString(C_EncodingUtil.SerializeCBOR(values))
-	return PREFIX .. C_EncodingUtil.EncodeBase64(packed)
+	-- The encoders may return nothing (EncodingUtilDocumentation.lua); an empty box is better than an error.
+	local packed = C_EncodingUtil.CompressString(C_EncodingUtil.SerializeCBOR(values) or "")
+	local encoded = packed and C_EncodingUtil.EncodeBase64(packed)
+	return encoded and PREFIX .. encoded or ""
 end
 
 local function decode(text)

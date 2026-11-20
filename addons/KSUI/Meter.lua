@@ -292,3 +292,9 @@ function ns.InitMeter()
 	end)
 	ns.RefreshMeter()
 end
+
+-- The meter reads Blizzard's damage meter data, whose switch is one of KSUI's CVars, so both follow the option.
+function ns.RefreshDamageMeter()
+	ns.RefreshCVars()
+	ns.RefreshMeter()
+end

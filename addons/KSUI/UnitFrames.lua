@@ -251,7 +251,7 @@ local function addRole(frame)
 end
 
 -- Defined with the party rows further down.
-local updateHots
+local updateHots, addHots
 
 local function updateAll(frame)
 	if not UnitExists(frame.unit) then
@@ -365,6 +365,7 @@ local function buildPartyPlayer()
 	local frame = build(partyPlayer, "player", false, PARTY_WIDTH, PARTY_HEIGHT, {})
 	listen(frame, "GROUP_ROSTER_UPDATE")
 	addRole(frame)
+	addHots(frame)
 end
 
 -- Shown in a party but not a raid, which has its own frames with you in them, nor with Blizzard's raid-style party
@@ -402,6 +403,8 @@ local function placePartyExtras(member, frame)
 		glow:SetPoint("BOTTOMRIGHT", PARTY_GLOW, -PARTY_GLOW)
 		member.ksuiGlowMoved = true
 	elseif member.ksuiGlowMoved then
+		-- Blizzard's art sets only one corner again, so KSUI's two go first.
+		glow:ClearAllPoints()
 		glow:SetParent(member)
 		glow:SetDrawLayer("ARTWORK")
 	end
@@ -426,10 +429,13 @@ end
 -- Blizzard's own party frame for when KSUI's rows are switched off.
 local HOT_SIZE, BLIZZARD_HOT_SIZE = 12, 14
 
-local function addHots(frame, member)
+function addHots(frame, member)
 	frame.hots = ns.CreateShortBuffIcons(frame.health, HOT_SIZE, "BOTTOMLEFT", 2, 2, "RIGHT", frame.absorb:GetFrameLevel() + 2)
-	frame.blizzardHots = ns.CreateShortBuffIcons(member, BLIZZARD_HOT_SIZE, "TOPRIGHT", BLIZZARD_HOT_SIZE + 2, 0, "RIGHT",
-		member:GetFrameLevel() + 5)
+	-- Your own row has no Blizzard party frame under it.
+	if member then
+		frame.blizzardHots = ns.CreateShortBuffIcons(member, BLIZZARD_HOT_SIZE, "TOPRIGHT", BLIZZARD_HOT_SIZE + 2, 0,
+			"RIGHT", member:GetFrameLevel() + 5)
+	end
 end
 
 function updateHots(frame)

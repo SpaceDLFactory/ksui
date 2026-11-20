@@ -352,19 +352,17 @@ end
 -- with EDIT_MODE_LAYOUTS_UPDATED, which Edit Mode handles first; this waits a frame after it.
 local function applyAtLoad()
 	local version = C_AddOns.GetAddOnMetadata(addonName, "Version")
+	local due = ns.db.layoutVersion == nil or ns.db.layoutPending
+		or (ns.db.layoutVersion ~= version and ksuiLayoutActive())
+	if not due then
+		return
+	end
+	-- Loading into combat (a /reload mid-fight): it is saved when the UI unloads instead, like a settings change.
 	if InCombatLockdown() then
+		ns.db.layoutPending = true
 		return
 	end
-	if ns.db.layoutVersion == nil or ns.db.layoutPending then
-		applyLayout(false)
-		return
-	end
-	if ns.db.layoutVersion == version then
-		return
-	end
-	if ksuiLayoutActive() then
-		applyLayout(false)
-	end
+	applyLayout(false)
 end
 
 -- Settings that change the layout are saved when the UI unloads (logging out or /reload), and again at the next load
