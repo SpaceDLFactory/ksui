@@ -200,7 +200,8 @@ local function world(state)
 		function f:SetFrameLevel(l) self.level = l end
 		function f:SetHideCountdownNumbers(v) self.hideNumbers = v end
 		function f:SetAlpha(v) self.alpha = v end
-		function f:Clear() self.duration = nil end
+		function f:Clear() self.duration = nil; self.timer = nil end
+		function f:SetCooldown(start, duration) self.timer = { start, duration } end
 		function f:GetFrameLevel() return self.level or 1 end
 		function f:IsShown() return self.shown ~= false end
 		function f:SetStatusBarColor(r, g, b) self.color = { r, g, b } end
@@ -325,6 +326,11 @@ local function world(state)
 			return (state.myAuras or {})[unit] or {}
 		end,
 		GetAuraDuration = function(unit, id) return { unit = unit, id = id } end,
+		GetAuraDataByAuraInstanceID = function(unit, id)
+			for _, aura in ipairs((state.myAuras or {})[unit] or {}) do
+				if aura.auraInstanceID == id then return aura end
+			end
+		end,
 	}
 	function env.UnitHealthPercent(u, predicted, curve)
 		assert(predicted == true and curve == env.CurveConstants.ScaleTo100)
@@ -491,7 +497,7 @@ local function world(state)
 		DecodeBase64 = function(s) return unwrap("b", s) end,
 	}
 	env.pcall = pcall
-	env.unpack = unpack
+	env.unpack, env.next = unpack, next
 	env.SOUNDKIT = { TELL_MESSAGE = 3081 }
 	function env.PlaySound(id) state.sounds[#state.sounds + 1] = id end
 	-- Quests: state.npc = { gossipActive = {...}, gossipAvailable = {...}, active = {...}, available = {...},
@@ -606,7 +612,7 @@ local function world(state)
 	local SPELLS = { [1243] = "신의 권능: 인내", [21562] = "인내의 기원", [1126] = "야생의 징표", [21849] = "야생의 선물",
 		[1459] = "신비한 지능", [23028] = "신비한 총명함",
 		[853] = "심판의 망치", [5588] = "심판의 망치", [20271] = "심판",
-		[17] = "신의 권능: 보호막", [139] = "소생", [774] = "회복" }
+		[17] = "신의 권능: 보호막", [139] = "소생", [774] = "회복", [1022] = "보호의 축복" }
 	env.C_Spell = { GetSpellName = function(id) return SPELLS[id] end,
 		-- Like the client: icon, original icon, conditional icon.
 		GetSpellTexture = function(id) return "tex" .. tostring(id), 1, 2 end }
@@ -721,7 +727,7 @@ local function world(state)
 	function spellbar:PlayInterruptAnims() self.HoldFadeOutAnim.stopped = false; self:SetAlpha(1) end
 	function spellbar:SetAlpha(a) self.alpha = a end
 	function env.CreateColor(r, g, b) return { r = r, g = g, b = b } end
-	function env.GetTime() return 100 end
+	function env.GetTime() return state.now or 100 end
 	-- Blizzard's target aura row: Blizzard puts it under its own art.
 	local function withAuras(f)
 		f.auras = { points = {}, mirrored = false }
@@ -2586,6 +2592,43 @@ do
 	state.auraBlocked = nil
 	fire(env, "UNIT_AURA", "party1")
 	check("shown again once readable", frame.hots[1].shown == true)
+	-- No duration from the game: KSUI times what UNIT_AURA reports added, for the spell's length in its list.
+	local renew = { name = "소생", icon = "renew", auraInstanceID = 20, duration = 0, spellId = 6074 }
+	local shield = { name = "신의 권능: 보호막", icon = "shield", auraInstanceID = 21, duration = 0, spellId = 10901 }
+	local bop = { name = "보호의 축복", icon = "bop", auraInstanceID = 22, duration = 0, spellId = 10278 }
+	local old = { name = "회복", icon = "rejuv", auraInstanceID = 23, duration = 0, spellId = 774 }
+	state.myAuras = { party1 = { renew, shield, bop, old } }
+	fire(env, "UNIT_AURA", "party1", { addedAuras = { renew, shield, bop } })
+	check("an added heal over time is timed from now", frame.hots[1].cooldown.timer[1] == 100
+		and frame.hots[1].cooldown.timer[2] == 15)
+	check("shields too", frame.hots[2].cooldown.timer[2] == 30)
+	check("a rank's own length", frame.hots[3].cooldown.timer[2] == 10)
+	check("one already there when KSUI first saw it gets no timer", frame.hots[4].shown
+		and frame.hots[4].cooldown.timer == nil)
+	state.now = 105
+	fire(env, "UNIT_AURA", "party1", { updatedAuraInstanceIDs = { 20, 21, 23 } })
+	check("a re-cast heal over time starts again", frame.hots[1].cooldown.timer[1] == 105)
+	check("a shield's update is its amount, not a re-cast", frame.hots[2].cooldown.timer[1] == 100)
+	check("an untimed one stays untimed", frame.hots[4].cooldown.timer == nil)
+	-- A start that comes after the icon was drawn still reaches it.
+	local late = { name = "회복", icon = "rejuv", auraInstanceID = 24, duration = 0, spellId = 774 }
+	state.myAuras = { party1 = { late } }
+	fire(env, "UNIT_AURA", "party1")
+	check("drawn untimed before the start is known", frame.hots[1].cooldown.timer == nil)
+	for _, h in ipairs(env.events) do
+		if h.frame.registered.UNIT_AURA then h.fn(h.frame, "UNIT_AURA", "party1", { addedAuras = { late } }); break end
+	end
+	check("the tracker restarts an icon already showing the aura", frame.hots[1].cooldown.timer[1] == 105
+		and frame.hots[1].cooldown.timer[2] == 12)
+	fire(env, "UNIT_AURA", "party1", { removedAuraInstanceIDs = { 24 } })
+	state.myAuras = { party1 = { late } }
+	fire(env, "UNIT_AURA", "party1")
+	check("a removed aura's start is forgotten", frame.hots[1].cooldown.timer == nil)
+	state.now = nil
+	fire(env, "UNIT_AURA", SECRET, SECRET)
+	check("a secret update is ignored", true)
+	state.myAuras = { party1 = { { name = "소생", icon = "renew", auraInstanceID = 7, duration = 15 } } }
+	fire(env, "UNIT_AURA", "party1")
 	check("party member filled", frame.health.barValue == 80 and frame.health.name.format[3] == "Friend")
 	member.Portrait:SetAlpha(0.7)
 	check("Blizzard's portrait pulse stays hidden", member.Portrait.alpha == 0)
