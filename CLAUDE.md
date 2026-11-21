@@ -3,7 +3,7 @@
 An open-source UI addon for **WoW: Forever** (Blizzard's official 2026 classic-style game; game type `camelot`,
 interface 16001, client 1.60.1). Public name 검성UI (Kumsung UI); folder, slash command (`/ksui`), saved variables
 (`KSUIDB`) and Edit Mode layout are all named `KSUI`. GPL-3.0-or-later. GitHub: SpaceDLFactory/ksui.
-CurseForge project 1809000, slug `ksui-kumsungui`. Current release: **0.13.6** (2026-11-20).
+CurseForge project 1809000, slug `ksui-kumsungui`. Current release: **0.13.7** (2026-11-21).
 
 Development moved from a Mac session to this Windows machine on 2026-11-20. The game runs here:
 `F:\World of Warcraft\_forever_\Interface\AddOns\KSUI` (the Mac copied files there over SSH; that copy matches
@@ -39,7 +39,7 @@ Development moved from a Mac session to this Windows machine on 2026-11-20. The 
     cooldown manager, `Quest.lua` quest arrow, `AutoQuest.lua`, `Chat.lua`, `Convenience.lua` (loot, tooltip,
     invites, XP text, movie skip), `Gear.lua` gear suggestions, `ReadyCheck.lua` missing buffs, `Combat.lua`,
     `Skin.lua`, `Cooldown.lua`, `Merchant.lua`, `Tracking.lua`.
-- `tests/run.lua` — one big LuaJIT harness that mocks the WoW API and boots the addon (531 checks at 0.13.6).
+- `tests/run.lua` — one big LuaJIT harness that mocks the WoW API and boots the addon (553 checks at 0.13.7).
   Run `luajit tests/run.lua`; it must end with `0 failures` before any commit. On this Windows machine LuaJIT is
   `F:\dev\env\luajit\luajit.exe` (built from source with the MSVC tools in `F:\BuildTools`); every dev tool lives
   under `F:\dev\env`, none on C:. `F:\dev\env\deploy-ksui.ps1` runs the tests and mirrors `addons\KSUI` into the
@@ -104,6 +104,10 @@ Not yet confirmed in game:
   export/import (`/ksui export`, `/ksui import`), English text via `ns.T("한국어", "English")`, and no aura queries
   while `C_Secrets.ShouldAurasBeSecret()` (they raised "Auras cannot be accessed when secret while tainted" in
   instances). None of these is confirmed in game yet; the layout needs `/ksui layout` once for the swing timers.
+- 0.13.7 (2026-11-21): fixes from a Codex (gpt-6.2-astra) cross-check, not yet confirmed in game. Known and left:
+  CooldownCast buttons can point at the wrong spell after an in-combat full UNIT_AURA relayout (secure attributes
+  can't change in combat); the enemy channel bar fills instead of draining (SetTimerDuration refuses secrets from
+  tainted code); quest arrow skips collapsed quest log headers; nameplate level not refreshed on UNIT_LEVEL.
 
 Ideas the user raised, not built:
 - A split action bar "centred on the screen" (an earlier attempt was the wrong shape and was removed — ask for a
