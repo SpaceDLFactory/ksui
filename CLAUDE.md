@@ -39,7 +39,7 @@ Development moved from a Mac session to this Windows machine on 2026-11-20. The 
     cooldown manager, `Quest.lua` quest arrow, `AutoQuest.lua`, `Chat.lua`, `Convenience.lua` (loot, tooltip,
     invites, XP text, movie skip), `Gear.lua` gear suggestions, `ReadyCheck.lua` missing buffs, `Combat.lua`,
     `Skin.lua`, `Cooldown.lua`, `Merchant.lua`, `Tracking.lua`.
-- `tests/run.lua` — one big LuaJIT harness that mocks the WoW API and boots the addon (564 checks).
+- `tests/run.lua` — one big LuaJIT harness that mocks the WoW API and boots the addon (579 checks).
   Run `luajit tests/run.lua`; it must end with `0 failures` before any commit. On this Windows machine LuaJIT is
   `F:\dev\env\luajit\luajit.exe` (built from source with the MSVC tools in `F:\BuildTools`); every dev tool lives
   under `F:\dev\env`, none on C:. `F:\dev\env\deploy-ksui.ps1` runs the tests and mirrors `addons\KSUI` into the
@@ -111,6 +111,8 @@ Not yet confirmed in game:
   tainted code); quest arrow skips collapsed quest log headers; nameplate level not refreshed on UNIT_LEVEL.
 - 0.13.8 (2026-11-21): party shield/HoT icons timed by KSUI (from UNIT_AURA addedAuras, duration table), every
   Classic timed heal and absorb, Weakened Soul and Forbearance shown after them. Not yet confirmed in game.
+  Codex follow-up after 0.13.8: lockouts keep their slots, full updates drop starts, absorbs and lockouts never
+  restart on update, the game's own duration wins; talent-lengthened HoTs (Nature's Splendor) still end early.
 
 Ideas the user raised, not built:
 - A split action bar "centred on the screen" (an earlier attempt was the wrong shape and was removed — ask for a

@@ -12,59 +12,83 @@
 local _, ns = ...
 
 local COUNT = 4
--- Rank 1 spell ID, seconds, and whether it absorbs damage (its updates are then the amount left, not a recast).
--- Durations are Classic's; the ones that change with rank are in RANK_DURATION by the rank's spell ID.
+-- Rank 1 spell ID, seconds, and "absorb" for a shield (its updates are the amount it has left, not a re-cast).
+-- Durations are Classic's base; the ones that change with rank are in RANK_DURATION by the rank's spell ID. Talents
+-- that lengthen a heal (Forever's Nature's Splendor) aren't known for other players, so their swipe ends early.
 local SHORT_BUFF_SPELLS = {
-	{ 17, 30, true }, { 139, 15 }, { 7001, 10 }, { 552, 20 }, -- Power Word: Shield, Renew, Lightwell Renew, Abolish Disease
+	{ 17, 30, "absorb" }, { 139, 15 }, { 7001, 10 }, { 552, 20 }, -- Power Word: Shield, Renew, Lightwell Renew, Abolish Disease
 	{ 774, 12 }, { 8936, 21 }, { 2893, 8 }, -- Rejuvenation, Regrowth, Abolish Poison
 	{ 1022, 6 }, { 498, 6 }, { 642, 10 }, -- Blessing of Protection, Divine Protection, Divine Shield
-	{ 11426, 60, true }, { 1463, 60, true }, -- Ice Barrier, Mana Shield
-	{ 543, 30, true }, { 6143, 30, true }, -- Fire Ward, Frost Ward
-	{ 6229, 30, true }, { 7812, 30, true }, -- Shadow Ward, Sacrifice (Voidwalker)
-	{ 6788, 15 }, { 25771, 60 }, -- Weakened Soul, Forbearance (debuffs)
+	{ 11426, 60, "absorb" }, { 1463, 60, "absorb" }, -- Ice Barrier, Mana Shield
+	{ 543, 30, "absorb" }, { 6143, 30, "absorb" }, -- Fire Ward, Frost Ward
+	{ 6229, 30, "absorb" }, { 7812, 30, "absorb" }, -- Shadow Ward, Sacrifice (Voidwalker)
 }
+-- The debuffs that say a shield or a blessing can't go on again yet. Their updates (Renewed Hope shortening Weakened
+-- Soul) aren't a re-cast either. They keep their places on a full row.
+local LOCKOUT_SPELLS = { { 6788, 15, "lockout" }, { 25771, 60, "lockout" } } -- Weakened Soul, Forbearance
 local RANK_DURATION = { [5599] = 8, [10278] = 10, [5573] = 8, [1020] = 12 }
 local RAID_SIZE = 11
-local shortBuffNames
+local buffNames, lockoutNames, lockoutIDs
 
--- auraInstanceID -> GetTime() when UNIT_AURA reported it added, or re-cast for a heal over time.
+-- auraInstanceID -> { start = GetTime(), duration, unit } from when UNIT_AURA reported it added, or a heal re-cast.
 local started = {}
 -- Every icon row, so a start that arrives after an icon was drawn still reaches it.
 local iconRows = setmetatable({}, { __mode = "k" })
 
-local function isShortBuff(aura)
-	if not shortBuffNames then
-		shortBuffNames = {}
-		for _, spell in ipairs(SHORT_BUFF_SPELLS) do
-			local name = C_Spell.GetSpellName(spell[1])
-			if name then
-				shortBuffNames[name] = spell
-			end
+local function byName(list)
+	local names = {}
+	for _, spell in ipairs(list) do
+		local name = C_Spell.GetSpellName(spell[1])
+		if name then
+			names[name] = spell
 		end
 	end
-	-- A readable list can still hold an aura that isn't.
-	if issecretvalue(aura) or not canaccesstable(aura) then
-		return false
-	end
-	local name, id = aura.name, aura.auraInstanceID
-	if issecretvalue(name) or issecretvalue(id) then
-		return false
-	end
-	return shortBuffNames[name] ~= nil
+	return names
 end
 
--- Seconds the aura lasts and whether it absorbs, from the list; isShortBuff(aura) has been checked.
-local function spellOf(aura)
-	local spell = shortBuffNames[aura.name]
+-- The list entry for a shield, heal or (harmful) lockout, or nil. A readable list can still hold an aura that isn't.
+local function shortBuffOf(aura, harmful)
+	if not buffNames then
+		buffNames, lockoutNames, lockoutIDs = byName(SHORT_BUFF_SPELLS), byName(LOCKOUT_SPELLS), {}
+		for _, spell in ipairs(LOCKOUT_SPELLS) do
+			lockoutIDs[spell[1]] = spell
+		end
+	end
+	if issecretvalue(aura) or type(aura) ~= "table" or not canaccesstable(aura) then
+		return nil
+	end
+	local name, id, spellId = aura.name, aura.auraInstanceID, aura.spellId
+	if issecretvalue(name) or issecretvalue(id) then
+		return nil
+	end
+	if not harmful then
+		return buffNames[name]
+	end
+	-- A harmful aura can share a buff's name (the Voidwalker's Sacrifice is also a stun); the ID decides when readable.
+	if not issecretvalue(spellId) and spellId then
+		return lockoutIDs[spellId]
+	end
+	return lockoutNames[name]
+end
+
+local function durationOf(spell, aura)
 	local id = aura.spellId
-	local byRank = not issecretvalue(id) and RANK_DURATION[id]
-	return byRank or spell[2], spell[3] == true
+	return not issecretvalue(id) and RANK_DURATION[id] or spell[2]
+end
+
+-- The recorded start of a timed aura, dropped once its time is over so a reused ID can't pick it up.
+local function startOf(id)
+	local entry = started[id]
+	if entry and entry.start + entry.duration < GetTime() then
+		started[id], entry = nil, nil
+	end
+	return entry
 end
 
 local function startCooldown(icon, aura)
-	local start = started[aura.auraInstanceID]
-	if start then
-		icon.cooldown:SetCooldown(start, (spellOf(aura)))
+	local entry = startOf(aura.auraInstanceID)
+	if entry then
+		icon.cooldown:SetCooldown(entry.start, entry.duration)
 	else
 		icon.cooldown:Clear()
 	end
@@ -106,25 +130,39 @@ function ns.ReadAuras(query, ...)
 	end
 end
 
-function ns.UpdateShortBuffIcons(icons, unit)
-	local shown = {}
-	icons.auras = shown
-	if unit and UnitExists(unit) then
-		for _, filter in ipairs({ "HELPFUL", "HARMFUL" }) do
-			local auras = ns.ReadAuras(C_UnitAuras.GetUnitAuras, unit, filter)
-			-- The result itself is checked before it is tested.
-			if not issecretvalue(auras) and auras and canaccesstable(auras) then
-				for _, aura in ipairs(auras) do
-					if #shown < COUNT and isShortBuff(aura) then
-						shown[#shown + 1] = aura
-					end
-				end
-			end
+-- A list from the client or an event, or an empty one when it is missing or can't be read.
+local function readable(list)
+	if issecretvalue(list) or type(list) ~= "table" or not canaccesstable(list) then
+		return {}
+	end
+	return list
+end
+
+local function collect(unit, harmful, limit)
+	local found = {}
+	local auras = ns.ReadAuras(C_UnitAuras.GetUnitAuras, unit, harmful and "HARMFUL" or "HELPFUL")
+	for _, aura in ipairs(readable(auras)) do
+		if #found < limit and shortBuffOf(aura, harmful) then
+			found[#found + 1] = aura
 		end
 	end
+	return found
+end
+
+function ns.UpdateShortBuffIcons(icons, unit)
+	local shown = {}
+	if unit and UnitExists(unit) then
+		local lockouts = collect(unit, true, #LOCKOUT_SPELLS)
+		shown = collect(unit, false, COUNT - #lockouts)
+		for _, aura in ipairs(lockouts) do
+			shown[#shown + 1] = aura
+		end
+	end
+	icons.auras = shown
 	for i, icon in ipairs(icons) do
 		local aura = shown[i]
 		icon:SetShown(aura ~= nil)
+		icon.native = nil
 		if aura then
 			icon.texture:SetTexture(aura.icon)
 			local duration = aura.duration
@@ -133,6 +171,7 @@ function ns.UpdateShortBuffIcons(icons, unit)
 				and ns.ReadAuras(C_UnitAuras.GetAuraDuration, unit, aura.auraInstanceID)
 			if object then
 				icon.cooldown:SetCooldownFromDurationObject(object)
+				icon.native = true
 			else
 				startCooldown(icon, aura)
 			end
@@ -153,36 +192,47 @@ local function isGroupFrame(frame)
 	return name ~= nil and (name:find("^CompactRaid") ~= nil or name:find("^CompactParty") ~= nil)
 end
 
+local function begin(changed, unit, aura, spell)
+	local id = aura.auraInstanceID
+	started[id] = { start = GetTime(), duration = durationOf(spell, aura), unit = unit }
+	changed[id] = true
+end
+
 -- Records when short buffs are added, re-cast or gone, from UNIT_AURA's update info, and restarts the swipe of any icon
--- already showing that aura (the frames' own UNIT_AURA handlers may have drawn before this one ran).
+-- timed by KSUI that already shows that aura (the frames' own UNIT_AURA handlers may have drawn before this one ran).
 local function track(unit, info)
 	if issecretvalue(unit) or issecretvalue(info) or type(info) ~= "table" or not canaccesstable(info)
 		or C_Secrets.ShouldAurasBeSecret() then
 		return
 	end
+	-- A full update says nothing about what changed; this unit's starts can't be trusted past it.
+	local full = info.isFullUpdate
+	if not issecretvalue(full) and full then
+		for id, entry in pairs(started) do
+			if entry.unit == unit then
+				started[id] = nil
+			end
+		end
+	end
 	local changed = {}
-	for _, aura in ipairs(info.addedAuras or {}) do
-		if isShortBuff(aura) then
-			started[aura.auraInstanceID] = GetTime()
-			changed[aura.auraInstanceID] = true
+	for _, aura in ipairs(readable(info.addedAuras)) do
+		-- The event doesn't say which list the aura is in; a debuff is matched by its ID where it can be.
+		local spell = shortBuffOf(aura, false) or shortBuffOf(aura, true)
+		if spell then
+			begin(changed, unit, aura, spell)
 		end
 	end
-	for _, id in ipairs(info.updatedAuraInstanceIDs or {}) do
-		-- A shield's updates are the amount it has left; a heal over time's is a re-cast.
-		if not issecretvalue(id) and started[id] then
+	for _, id in ipairs(readable(info.updatedAuraInstanceIDs)) do
+		if not issecretvalue(id) then
+			-- Only a heal's update is a re-cast; it also times one first seen before the re-cast.
 			local aura = ns.ReadAuras(C_UnitAuras.GetAuraDataByAuraInstanceID, unit, id)
-			local reCast = false
-			if aura and isShortBuff(aura) then
-				local _, absorbs = spellOf(aura)
-				reCast = not absorbs
-			end
-			if reCast then
-				started[id] = GetTime()
-				changed[id] = true
+			local spell = shortBuffOf(aura, false)
+			if spell and not spell[3] then
+				begin(changed, unit, aura, spell)
 			end
 		end
 	end
-	for _, id in ipairs(info.removedAuraInstanceIDs or {}) do
+	for _, id in ipairs(readable(info.removedAuraInstanceIDs)) do
 		if not issecretvalue(id) then
 			started[id] = nil
 		end
@@ -190,7 +240,7 @@ local function track(unit, info)
 	if next(changed) then
 		for icons in pairs(iconRows) do
 			for i, aura in ipairs(icons.auras or {}) do
-				if changed[aura.auraInstanceID] then
+				if changed[aura.auraInstanceID] and not icons[i].native then
 					startCooldown(icons[i], aura)
 				end
 			end

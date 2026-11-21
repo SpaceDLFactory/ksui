@@ -329,8 +329,10 @@ local function world(state)
 		end,
 		GetAuraDuration = function(unit, id) return { unit = unit, id = id } end,
 		GetAuraDataByAuraInstanceID = function(unit, id)
-			for _, aura in ipairs((state.myAuras or {})[unit] or {}) do
-				if aura.auraInstanceID == id then return aura end
+			for _, list in ipairs({ (state.myAuras or {})[unit] or {}, (state.myDebuffs or {})[unit] or {} }) do
+				for _, aura in ipairs(list) do
+					if aura.auraInstanceID == id then return aura end
+				end
 			end
 		end,
 	}
@@ -378,7 +380,11 @@ local function world(state)
 		function c:SetType(t) self.type = t end
 		function c:AddPoint(x, y) self.points[#self.points + 1] = { x, y } end
 		return c
-	end }
+	end,
+		EvaluateColorValueFromBoolean = function(b, yes, no)
+			if b == SECRET then return SECRET end
+			return b and yes or no
+		end }
 	function env.UnitPowerPercent(u, powerType, unmodified, curve)
 		assert(powerType == nil and unmodified == false and curve.type == 1)
 		local power, max = field(u, "power", 50), field(u, "maxPower", 100)
@@ -620,7 +626,7 @@ local function world(state)
 	local SPELLS = { [1243] = "신의 권능: 인내", [21562] = "인내의 기원", [1126] = "야생의 징표", [21849] = "야생의 선물",
 		[1459] = "신비한 지능", [23028] = "신비한 총명함",
 		[853] = "심판의 망치", [5588] = "심판의 망치", [20271] = "심판",
-		[17] = "신의 권능: 보호막", [139] = "소생", [774] = "회복", [1022] = "보호의 축복", [6788] = "약화된 영혼" }
+		[17] = "신의 권능: 보호막", [139] = "소생", [774] = "회복", [1022] = "보호의 축복", [6788] = "약화된 영혼", [7812] = "희생" }
 	env.C_Spell = { GetSpellName = function(id) return SPELLS[id] end,
 		-- Like the client: icon, original icon, conditional icon.
 		GetSpellTexture = function(id) return "tex" .. tostring(id), 1, 2 end }
@@ -2617,7 +2623,7 @@ do
 	fire(env, "UNIT_AURA", "party1", { updatedAuraInstanceIDs = { 20, 21, 23 } })
 	check("a re-cast heal over time starts again", frame.hots[1].cooldown.timer[1] == 105)
 	check("a shield's update is its amount, not a re-cast", frame.hots[2].cooldown.timer[1] == 100)
-	check("an untimed one stays untimed", frame.hots[4].cooldown.timer == nil)
+	check("a heal's update is a re-cast, timing one first seen earlier", frame.hots[4].cooldown.timer[1] == 105)
 	-- A start that comes after the icon was drawn still reaches it.
 	local late = { name = "회복", icon = "rejuv", auraInstanceID = 24, duration = 0, spellId = 774 }
 	state.myAuras = { party1 = { late } }
@@ -2639,6 +2645,41 @@ do
 	fire(env, "UNIT_AURA", "party1", { addedAuras = { weakened } })
 	check("Weakened Soul shows after the shield, timed", frame.hots[2].shown and frame.hots[2].texture.file == "weakened"
 		and frame.hots[2].cooldown.timer[2] == 15 and frame.hots[3].shown == false)
+	-- Renewed Hope shortens Weakened Soul with an update; that isn't a new one.
+	state.now = 110
+	fire(env, "UNIT_AURA", "party1", { updatedAuraInstanceIDs = { 25 } })
+	check("a lockout's update doesn't restart it", frame.hots[2].cooldown.timer[1] == 105)
+	state.myAuras = { party1 = { renew, shield, bop, old } }
+	fire(env, "UNIT_AURA", "party1")
+	check("a full row keeps the lockout's place", frame.hots[4].texture.file == "weakened"
+		and frame.hots[3].texture.file == "bop")
+	-- The Voidwalker's Sacrifice shares its name with a stun.
+	state.myAuras = { party1 = {} }
+	state.myDebuffs = { party1 = { { name = "희생", icon = "stun", auraInstanceID = 27, duration = 0, spellId = 22651 } } }
+	fire(env, "UNIT_AURA", "party1")
+	check("a harmful aura with a buff's name isn't shown", frame.hots[1].shown == false)
+	-- A full update drops the unit's starts; a time that is over is dropped too.
+	state.myAuras = { party1 = { renew } }
+	state.myDebuffs = nil
+	fire(env, "UNIT_AURA", "party1", { addedAuras = { renew } })
+	check("timed before the full update", frame.hots[1].cooldown.timer ~= nil)
+	fire(env, "UNIT_AURA", "party1", { isFullUpdate = true })
+	check("a full update drops the unit's starts", frame.hots[1].cooldown.timer == nil)
+	fire(env, "UNIT_AURA", "party1", { addedAuras = { renew } })
+	state.now = 200
+	fire(env, "UNIT_AURA", "party1")
+	check("a start whose time is over is dropped", frame.hots[1].cooldown.timer == nil)
+	-- The game's own duration wins over a late start from the tracker.
+	local own = { name = "소생", icon = "renew", auraInstanceID = 28, duration = 18, spellId = 139 }
+	state.myAuras = { party1 = { own } }
+	fire(env, "UNIT_AURA", "party1")
+	for _, h in ipairs(env.events) do
+		if h.frame.registered.UNIT_AURA then h.fn(h.frame, "UNIT_AURA", "party1", { addedAuras = { own } }); break end
+	end
+	check("a late start doesn't replace the game's duration", frame.hots[1].cooldown.duration.id == 28
+		and frame.hots[1].cooldown.timer == nil)
+	fire(env, "UNIT_AURA", "party1", { addedAuras = SECRET, updatedAuraInstanceIDs = SECRET, removedAuraInstanceIDs = SECRET })
+	check("secret lists in a readable update are skipped", frame.hots[1].shown)
 	state.myDebuffs = nil
 	state.now = nil
 	fire(env, "UNIT_AURA", SECRET, SECRET)
@@ -2653,17 +2694,19 @@ do
 	check("party health event", frame.health.barValue == 30 and unitFrame(state, "party2").health.barValue == 80)
 	state.units.party1.outOfRange = true
 	fire(env, "UNIT_IN_RANGE_UPDATE", "party1", false)
-	check("an out of range member's row fades", frame.alphaFrom[1] == false and frame.alphaFrom[2] == 1
-		and frame.alphaFrom[3] < 1)
+	check("an out of range member's row fades", frame.alphaFrom[1] == true and frame.alphaFrom[2] < 1
+		and frame.alphaFrom[3] == 1)
 	state.units.party1.outOfRange = SECRET
 	fire(env, "UNIT_IN_RANGE_UPDATE", "party1", SECRET)
-	check("a secret range still fades it, from the boolean", frame.alphaFrom[1] == SECRET)
+	check("secret answers go to the secret-safe calls", frame.alphaFrom[1] == SECRET and frame.alphaFrom[2] == SECRET)
 	state.units.party1.outOfRange, state.units.party1.unchecked = true, true
 	fire(env, "UNIT_IN_RANGE_UPDATE", "party1", false)
-	check("an unchecked range leaves the row lit", frame.alpha == 1 and frame.alphaFrom == nil)
+	check("an unchecked range leaves the row lit", frame.alphaFrom[1] == false and frame.alphaFrom[3] == 1)
 	state.units.party1.outOfRange, state.units.party1.unchecked = nil, nil
 	fire(env, "UNIT_IN_RANGE_UPDATE", "party1", true)
-	check("back in range, lit again", frame.alphaFrom[1] == true)
+	check("back in range, lit again", frame.alphaFrom[1] == true and frame.alphaFrom[2] == 1)
+	check("only the fading rows listen for range", frame.events.registered.UNIT_IN_RANGE_UPDATE
+		and not unitFrame(state, "target").events.registered.UNIT_IN_RANGE_UPDATE)
 
 	member.unitToken = "party3"
 	state.units.party3 = { player = true, class = "MAGE" }

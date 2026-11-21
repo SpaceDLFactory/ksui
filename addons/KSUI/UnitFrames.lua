@@ -253,8 +253,9 @@ end
 -- Defined with the party rows further down.
 local updateHots, addHots
 
--- Party rows fade while the member is out of range, as Blizzard's raid frames do (its party frames don't). Both
--- answers can be secret; an unchecked range (another zone, offline) leaves the row as it is.
+-- Party rows fade while the member is out of range, as Blizzard's raid frames do (its party frames don't): faded
+-- when the range was checked and isn't in range (CompactUnitFrame_UpdateInRange). Both answers can be secret, so the
+-- two are combined by the secret-safe calls instead of being tested.
 local OUT_OF_RANGE_ALPHA = 0.45
 
 local function updateRange(frame)
@@ -262,11 +263,8 @@ local function updateRange(frame)
 		return
 	end
 	local inRange, checked = UnitInRange(frame.unit)
-	if not issecretvalue(checked) and not checked then
-		frame:SetAlpha(1)
-	else
-		frame:SetAlphaFromBoolean(inRange, 1, OUT_OF_RANGE_ALPHA)
-	end
+	local rangeAlpha = C_CurveUtil.EvaluateColorValueFromBoolean(inRange, 1, OUT_OF_RANGE_ALPHA)
+	frame:SetAlphaFromBoolean(checked, rangeAlpha, 1)
 end
 
 local function updateAll(frame)
@@ -294,12 +292,14 @@ local UPDATES = {
 }
 -- Registered by hand: these two are not unit events.
 local GLOBAL_EVENTS = { PLAYER_LEVEL_CHANGED = true, PORTRAITS_UPDATED = true }
+-- Range checks cost the client work for every frame listening, so only the rows that fade listen.
+local RANGE_EVENT = "UNIT_IN_RANGE_UPDATE"
 
 -- Registering again replaces the unit, for party frames that Blizzard hands a new one.
 local function setUnit(frame, unit)
 	frame.unit = unit
 	for event in pairs(UPDATES) do
-		if not GLOBAL_EVENTS[event] then
+		if not GLOBAL_EVENTS[event] and (event ~= RANGE_EVENT or frame.fadesOutOfRange) then
 			frame.events:RegisterUnitEvent(event, unit)
 		end
 	end
