@@ -3,7 +3,7 @@
 An open-source UI addon for **WoW: Forever** (Blizzard's official 2026 classic-style game; game type `camelot`,
 interface 16001, client 1.60.1). Public name 검성UI (Kumsung UI); folder, slash command (`/ksui`), saved variables
 (`KSUIDB`) and Edit Mode layout are all named `KSUI`. GPL-3.0-or-later. GitHub: SpaceDLFactory/ksui.
-CurseForge project 1809000, slug `ksui-kumsungui`. Current release: **0.13.7** (2026-11-21).
+CurseForge project 1809000, slug `ksui-kumsungui`. Current release: **0.13.8** (2026-11-21).
 
 Development moved from a Mac session to this Windows machine on 2026-11-20. The game runs here:
 `F:\World of Warcraft\_forever_\Interface\AddOns\KSUI` (the Mac copied files there over SSH; that copy matches
@@ -109,6 +109,8 @@ Not yet confirmed in game:
   CooldownCast buttons can point at the wrong spell after an in-combat full UNIT_AURA relayout (secure attributes
   can't change in combat); the enemy channel bar fills instead of draining (SetTimerDuration refuses secrets from
   tainted code); quest arrow skips collapsed quest log headers; nameplate level not refreshed on UNIT_LEVEL.
+- 0.13.8 (2026-11-21): party shield/HoT icons timed by KSUI (from UNIT_AURA addedAuras, duration table), every
+  Classic timed heal and absorb, Weakened Soul and Forbearance shown after them. Not yet confirmed in game.
 
 Ideas the user raised, not built:
 - A split action bar "centred on the screen" (an earlier attempt was the wrong shape and was removed — ask for a

@@ -4,7 +4,7 @@
 ## IconTexture: Interface\AddOns\KSUI\icon
 ## Notes: Configurable dark reskin of the default unit frames and action bars for WoW Forever.
 ## Notes-koKR: 와우 포에버 기본 유닛 프레임과 행동 단축바를 어둡게 다듬는 설정형 UI입니다.
-## Version: 0.13.7
+## Version: 0.13.8
 ## SavedVariables: KSUIDB
 ## X-License: GPL-3.0-or-later
 ## X-Curse-Project-ID: 1809000
