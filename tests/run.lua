@@ -199,7 +199,8 @@ local function world(state)
 		function f:EnableMouse(v) self.mouse = v end
 		function f:SetFrameLevel(l) self.level = l end
 		function f:SetHideCountdownNumbers(v) self.hideNumbers = v end
-		function f:SetAlpha(v) self.alpha = v end
+		function f:SetAlpha(v) self.alpha = v; self.alphaFrom = nil end
+		function f:SetAlphaFromBoolean(v, yes, no) self.alphaFrom = { v, yes, no } end
 		function f:Clear() self.duration = nil; self.timer = nil end
 		function f:SetCooldown(start, duration) self.timer = { start, duration } end
 		function f:GetFrameLevel() return self.level or 1 end
@@ -358,6 +359,12 @@ local function world(state)
 	function env.GetCreatureDifficultyColor(level) return level == 999 and { r = 1, g = 0.1, b = 0.1 } or { r = 0.5, g = 1, b = 0 } end
 	function env.UnitName(u) return field(u, "name", "Name"), state.units[u].surname end
 	function env.UnitIsVisible(u) return not state.units[u].far end
+	-- state.units[u].outOfRange: true, or SECRET; unchecked = range not known.
+	function env.UnitInRange(u)
+		local unit = state.units[u]
+		if unit.outOfRange == SECRET then return SECRET, SECRET end
+		return not unit.outOfRange, not unit.unchecked
+	end
 	env.C_Secrets = { ShouldUnitIdentityBeSecret = function(u) return state.units[u].hiddenIdentity == true end,
 		ShouldAurasBeSecret = function() return state.secretAuras == true end }
 	function env.SetPortraitTexture(t, u, noMask) t.portraitOf = { u, noMask } end
@@ -2644,6 +2651,19 @@ do
 	state.units.party1.health = 30
 	fire(env, "UNIT_HEALTH", "party1")
 	check("party health event", frame.health.barValue == 30 and unitFrame(state, "party2").health.barValue == 80)
+	state.units.party1.outOfRange = true
+	fire(env, "UNIT_IN_RANGE_UPDATE", "party1", false)
+	check("an out of range member's row fades", frame.alphaFrom[1] == false and frame.alphaFrom[2] == 1
+		and frame.alphaFrom[3] < 1)
+	state.units.party1.outOfRange = SECRET
+	fire(env, "UNIT_IN_RANGE_UPDATE", "party1", SECRET)
+	check("a secret range still fades it, from the boolean", frame.alphaFrom[1] == SECRET)
+	state.units.party1.outOfRange, state.units.party1.unchecked = true, true
+	fire(env, "UNIT_IN_RANGE_UPDATE", "party1", false)
+	check("an unchecked range leaves the row lit", frame.alpha == 1 and frame.alphaFrom == nil)
+	state.units.party1.outOfRange, state.units.party1.unchecked = nil, nil
+	fire(env, "UNIT_IN_RANGE_UPDATE", "party1", true)
+	check("back in range, lit again", frame.alphaFrom[1] == true)
 
 	member.unitToken = "party3"
 	state.units.party3 = { player = true, class = "MAGE" }
@@ -2695,6 +2715,10 @@ do
 		if f.unit == "player" and f.parent == row then drawn = f end
 	end
 	check("drawn like the party rows", drawn ~= nil and drawn.size[1] == 200)
+	state.units.player.outOfRange = true
+	fire(env, "UNIT_IN_RANGE_UPDATE", "player", false)
+	check("your own row doesn't fade", drawn.alphaFrom == nil)
+	state.units.player.outOfRange = nil
 	state.roles = { player = "HEALER" }
 	fire(env, "PLAYER_ROLES_ASSIGNED")
 	check("role icon shown", drawn.role.atlas == "roleicon-tiny-healer" and drawn.role.shown == true)

@@ -253,6 +253,22 @@ end
 -- Defined with the party rows further down.
 local updateHots, addHots
 
+-- Party rows fade while the member is out of range, as Blizzard's raid frames do (its party frames don't). Both
+-- answers can be secret; an unchecked range (another zone, offline) leaves the row as it is.
+local OUT_OF_RANGE_ALPHA = 0.45
+
+local function updateRange(frame)
+	if not frame.fadesOutOfRange then
+		return
+	end
+	local inRange, checked = UnitInRange(frame.unit)
+	if not issecretvalue(checked) and not checked then
+		frame:SetAlpha(1)
+	else
+		frame:SetAlphaFromBoolean(inRange, 1, OUT_OF_RANGE_ALPHA)
+	end
+end
+
 local function updateAll(frame)
 	if not UnitExists(frame.unit) then
 		return
@@ -264,6 +280,7 @@ local function updateAll(frame)
 	updatePortrait(frame)
 	updateRole(frame)
 	updateHots(frame)
+	updateRange(frame)
 end
 
 local UPDATES = {
@@ -272,7 +289,7 @@ local UPDATES = {
 	UNIT_AURA = function(frame) updateHots(frame) end,
 	UNIT_POWER_UPDATE = updatePower, UNIT_MAXPOWER = updatePower, UNIT_DISPLAYPOWER = updatePower,
 	UNIT_NAME_UPDATE = updateName, UNIT_LEVEL = updateName, PLAYER_LEVEL_CHANGED = updateName,
-	UNIT_FACTION = updateColor,
+	UNIT_FACTION = updateColor, UNIT_IN_RANGE_UPDATE = updateRange,
 	UNIT_MODEL_CHANGED = updatePortrait, UNIT_PORTRAIT_UPDATE = updatePortrait, PORTRAITS_UPDATED = updatePortrait,
 }
 -- Registered by hand: these two are not unit events.
@@ -460,6 +477,7 @@ local function attachPartyFrames()
 			-- Grows to the right from Blizzard's frame instead of from its middle.
 			frame:ClearAllPoints()
 			frame:SetPoint("LEFT")
+			frame.fadesOutOfRange = true
 			listen(frame, "GROUP_ROSTER_UPDATE")
 			addRole(frame)
 			addHots(frame, member)
