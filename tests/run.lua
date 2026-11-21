@@ -317,12 +317,13 @@ local function world(state)
 	-- state.myAuras[unit] = { { icon, auraInstanceID }, ... } or SECRET for a table that can't be read.
 	env.C_UnitAuras = {
 		GetUnitAuras = function(unit, filter, max)
-			assert(filter == "HELPFUL")
+			assert(filter == "HELPFUL" or filter == "HARMFUL")
 			-- The client raises an error for addon code asking while auras are secret, or for a unit restricted on
 			-- its own.
 			if state.secretAuras or (state.auraBlocked or {})[unit] then
 				error("GetUnitAuras(): Auras cannot be accessed when secret while tainted by 'KSUI'")
 			end
+			if filter == "HARMFUL" then return (state.myDebuffs or {})[unit] or {} end
 			return (state.myAuras or {})[unit] or {}
 		end,
 		GetAuraDuration = function(unit, id) return { unit = unit, id = id } end,
@@ -612,7 +613,7 @@ local function world(state)
 	local SPELLS = { [1243] = "신의 권능: 인내", [21562] = "인내의 기원", [1126] = "야생의 징표", [21849] = "야생의 선물",
 		[1459] = "신비한 지능", [23028] = "신비한 총명함",
 		[853] = "심판의 망치", [5588] = "심판의 망치", [20271] = "심판",
-		[17] = "신의 권능: 보호막", [139] = "소생", [774] = "회복", [1022] = "보호의 축복" }
+		[17] = "신의 권능: 보호막", [139] = "소생", [774] = "회복", [1022] = "보호의 축복", [6788] = "약화된 영혼" }
 	env.C_Spell = { GetSpellName = function(id) return SPELLS[id] end,
 		-- Like the client: icon, original icon, conditional icon.
 		GetSpellTexture = function(id) return "tex" .. tostring(id), 1, 2 end }
@@ -2624,6 +2625,14 @@ do
 	state.myAuras = { party1 = { late } }
 	fire(env, "UNIT_AURA", "party1")
 	check("a removed aura's start is forgotten", frame.hots[1].cooldown.timer == nil)
+	-- Weakened Soul is a debuff; it follows the buffs, timed the same way.
+	local weakened = { name = "약화된 영혼", icon = "weakened", auraInstanceID = 25, duration = 0, spellId = 6788 }
+	state.myAuras = { party1 = { shield } }
+	state.myDebuffs = { party1 = { { name = "독", icon = "poison", auraInstanceID = 26 }, weakened } }
+	fire(env, "UNIT_AURA", "party1", { addedAuras = { weakened } })
+	check("Weakened Soul shows after the shield, timed", frame.hots[2].shown and frame.hots[2].texture.file == "weakened"
+		and frame.hots[2].cooldown.timer[2] == 15 and frame.hots[3].shown == false)
+	state.myDebuffs = nil
 	state.now = nil
 	fire(env, "UNIT_AURA", SECRET, SECRET)
 	check("a secret update is ignored", true)

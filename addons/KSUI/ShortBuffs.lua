@@ -2,7 +2,8 @@
 -- Blizzard's raid frames (also used for raid-style party frames). Forever reports other players' auras with no
 -- duration and ignores the aura filters, so they are picked by name from this list (Classic rank 1 spell IDs; any
 -- rank matches by name), which leaves the long group buffs out. When an aura's name is secret, as in instances, it is
--- left out.
+-- left out. Two debuffs come along: Weakened Soul (no new Power Word: Shield yet) and Forbearance (no new Blessing of
+-- Protection or Divine Shield yet), after the buffs.
 --
 -- The time left shows as a cooldown swipe. The game gives other players' auras no duration and no start, so KSUI times
 -- them itself: from the moment UNIT_AURA reports the aura added, for the spell's duration in the list below. An aura
@@ -20,6 +21,7 @@ local SHORT_BUFF_SPELLS = {
 	{ 11426, 60, true }, { 1463, 60, true }, -- Ice Barrier, Mana Shield
 	{ 543, 30, true }, { 6143, 30, true }, -- Fire Ward, Frost Ward
 	{ 6229, 30, true }, { 7812, 30, true }, -- Shadow Ward, Sacrifice (Voidwalker)
+	{ 6788, 15 }, { 25771, 60 }, -- Weakened Soul, Forbearance (debuffs)
 }
 local RANK_DURATION = { [5599] = 8, [10278] = 10, [5573] = 8, [1020] = 12 }
 local RAID_SIZE = 11
@@ -108,12 +110,14 @@ function ns.UpdateShortBuffIcons(icons, unit)
 	local shown = {}
 	icons.auras = shown
 	if unit and UnitExists(unit) then
-		local auras = ns.ReadAuras(C_UnitAuras.GetUnitAuras, unit, "HELPFUL")
-		-- The result itself is checked before it is tested.
-		if not issecretvalue(auras) and auras and canaccesstable(auras) then
-			for _, aura in ipairs(auras) do
-				if #shown < COUNT and isShortBuff(aura) then
-					shown[#shown + 1] = aura
+		for _, filter in ipairs({ "HELPFUL", "HARMFUL" }) do
+			local auras = ns.ReadAuras(C_UnitAuras.GetUnitAuras, unit, filter)
+			-- The result itself is checked before it is tested.
+			if not issecretvalue(auras) and auras and canaccesstable(auras) then
+				for _, aura in ipairs(auras) do
+					if #shown < COUNT and isShortBuff(aura) then
+						shown[#shown + 1] = aura
+					end
 				end
 			end
 		end
