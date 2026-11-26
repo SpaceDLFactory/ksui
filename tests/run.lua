@@ -528,7 +528,13 @@ local function world(state)
 	function env.GetActiveTitle(i) return "Quest", state.npc.active[i] end
 	function env.GetNumAvailableQuests() return #(state.npc.available or {}) end
 	-- Forever has no IsAvailableQuestTrivial; Blizzard's quest frame reads GetAvailableQuestInfo's first value.
-	function env.GetAvailableQuestInfo(i) return state.npc.available[i] end
+	-- An entry is isTrivial, or { isTrivial, frequency, isRepeatable, isLegendary, questID }.
+	function env.GetAvailableQuestInfo(i)
+		local a = state.npc.available[i]
+		if type(a) == "table" then return unpack(a) end
+		return a
+	end
+	function env.GetActiveQuestID(i) return (state.npc.activeIDs or {})[i] or 0 end
 	function env.GetQuestID() return state.npc.questID or 0 end
 	function env.GetQuestMoneyToGet() return state.npc.money or 0 end
 	env.SelectActiveQuest, env.SelectAvailableQuest = pick("greetingActive"), pick("greetingAvailable")
@@ -583,6 +589,7 @@ local function world(state)
 	env.C_Navigation = { GetDistance = function() return 2066.87 end }
 	env.C_QuestLog = {
 		IsQuestTrivial = function(id) return state.npc.trivialQuest == id end,
+		IsRepeatableQuest = function(id) return (state.npc.repeatable or {})[id] == true end,
 		GetNextWaypointForMap = function() local w = state.quest.waypoint; if w then return w[1], w[2] end end,
 		GetQuestsOnMap = function() return state.quest.onMap end,
 		GetNumQuestLogEntries = function() return #state.quest.log end,
@@ -674,6 +681,7 @@ local function world(state)
 	env.SlashCmdList = {}
 	env.Enum = {
 		LuaCurveType = { Linear = 0, Step = 1 },
+		QuestFrequency = { Default = 0, Daily = 1, Weekly = 2 },
 		TooltipDataType = { Unit = 2 },
 		EditModeCooldownViewerSetting = { VisibleSetting = 6 },
 		EditModeMinimapSetting = { HeaderUnderneath = 0 },
@@ -2889,6 +2897,28 @@ do
 	state.shift = true
 	fire(env, "QUEST_PROGRESS")
 	check("Shift skips it all", #state.picked == 6)
+	state.shift = nil
+	-- Repeatable quests stay yours, however the window shows them.
+	state.npc.gossipActive = { { questID = 41, isComplete = true, repeatable = true } }
+	state.npc.gossipAvailable = { { questID = 42, isTrivial = false, frequency = 1 } }
+	fire(env, "GOSSIP_SHOW")
+	check("a repeatable or daily quest isn't picked from the list", #state.picked == 6)
+	state.npc.repeatable = { [43] = true, [44] = true }
+	state.npc.gossipActive, state.npc.gossipAvailable = {}, { { questID = 43, isTrivial = false } }
+	fire(env, "GOSSIP_SHOW")
+	check("nor one only the quest log knows is repeatable", #state.picked == 6)
+	state.npc.active, state.npc.activeIDs = { true }, { 44 }
+	state.npc.available = { { false, 2, false, false, 45 } }
+	fire(env, "QUEST_GREETING")
+	check("the greeting window leaves them too", #state.picked == 6)
+	state.npc.questID = 44
+	fire(env, "QUEST_DETAIL")
+	fire(env, "QUEST_PROGRESS")
+	fire(env, "QUEST_COMPLETE")
+	check("and the quest windows", #state.picked == 6)
+	state.npc.questID = 46
+	fire(env, "QUEST_PROGRESS")
+	check("an ordinary quest still goes", state.picked[7][1] == "complete")
 end
 
 -- Chat

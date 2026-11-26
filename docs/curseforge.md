@@ -31,7 +31,7 @@ It is built on Blizzard's own frames, so it keeps working under instance and rai
 - **Damage meter** built on Blizzard's combat data: damage, healing or damage taken, the latest fights to pick from, per-spell detail and a reset button.
 - **Party threat meter** with threat % on your target and the current tank marked.
 - **Interrupt helper** next to the target frame: your interrupt, the target's cast bar, and a highlight when the cast can be interrupted.
-- **Quality of life**: auto-accept and turn in quests (hold Shift to skip), fast looting, class-colored names and targets in tooltips, auto-accept invites from friends and guild, experience left on the XP bar, skip cutscenes you've seen
+- **Quality of life**: auto-accept and turn in quests (hold Shift to skip; repeatable and daily quests stay yours), fast looting, class-colored names and targets in tooltips, auto-accept invites from friends and guild, experience left on the XP bar, skip cutscenes you've seen
 - **Chat**: short channel names, clickable web addresses to copy, whisper sound
 - **Flat nameplates** with the mob's level (a skull for bosses), **square minimap**, **gray chat timestamps**, **cooldown numbers**, **out-of-range buttons in red**
 - **Screen-relative positions**, so the layout keeps its shape across resolutions and UI scales, re-applied automatically after an update
@@ -72,7 +72,7 @@ WoW Forever(인터페이스 16001)용 오픈소스 UI입니다. 기본 UI를 어
 - **딜미터** — 블리자드 전투 데이터를 쓰는 딜미터. 피해량·치유량·받은 피해, 최근 전투 선택, 스킬별 상세, 초기화 버튼.
 - **파티 위협 미터** — 파티일 때 대상에 대한 파티원 위협 %와 탱커 표시.
 - **차단 보조** — 대상 프레임 옆에 내 차단기와 대상 시전바, 끊을 수 있는 시전이면 노란 테두리.
-- **편의 기능** — 퀘스트 자동 수락·완료(Shift로 건너뜀), 빠른 전리품, 툴팁에 직업색 이름과 대상, 친구·길드 초대 자동 수락, 경험치바에 남은 경험치, 본 영상 넘기기.
+- **편의 기능** — 퀘스트 자동 수락·완료(Shift로 건너뜀, 반복·일일 퀘스트 제외), 빠른 전리품, 툴팁에 직업색 이름과 대상, 친구·길드 초대 자동 수락, 경험치바에 남은 경험치, 본 영상 넘기기.
 - **채팅** — 짧은 채널 이름, 웹 주소 눌러 복사, 귓속말 알림음.
 - **납작한 이름표** — 평평한 체력바와 얇은 검은 테두리, 몹 레벨(우두머리는 해골).
 - **네모 미니맵**, **채팅 시간 표시(회색)**, **쿨다운 숫자**, **사거리 밖 버튼 빨갛게**

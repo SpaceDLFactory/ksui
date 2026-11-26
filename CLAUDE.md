@@ -39,7 +39,7 @@ Development moved from a Mac session to this Windows machine on 2026-11-20. The 
     cooldown manager, `Quest.lua` quest arrow, `AutoQuest.lua`, `Chat.lua`, `Convenience.lua` (loot, tooltip,
     invites, XP text, movie skip), `Gear.lua` gear suggestions, `ReadyCheck.lua` missing buffs, `Combat.lua`,
     `Skin.lua`, `Cooldown.lua`, `Merchant.lua`, `Tracking.lua`.
-- `tests/run.lua` — one big LuaJIT harness that mocks the WoW API and boots the addon (579 checks).
+- `tests/run.lua` — one big LuaJIT harness that mocks the WoW API and boots the addon (584 checks).
   Run `luajit tests/run.lua`; it must end with `0 failures` before any commit. On this Windows machine LuaJIT is
   `F:\dev\env\luajit\luajit.exe` (built from source with the MSVC tools in `F:\BuildTools`); every dev tool lives
   under `F:\dev\env`, none on C:. `F:\dev\env\deploy-ksui.ps1` runs the tests and mirrors `addons\KSUI` into the
